@@ -1,12 +1,10 @@
 import axios from 'axios';
 
-const isProd = import.meta.env.PROD;
-const API_BASE_URL = isProd 
-    ? window.location.origin + "/api" 
-    : "http://localhost:8000/api";
+// Update this with your actual Railway URL after deploy
+const RAILWAY_URL = "https://languagetool-production313.up.railway.app" ;
 
 const api = axios.create({
-    baseURL: API_BASE_URL,
+    baseURL: RAILWAY_URL,
     headers: {
         'Content-Type': 'application/json'
     }

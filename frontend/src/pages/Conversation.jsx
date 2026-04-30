@@ -23,12 +23,8 @@ export default function Conversation({ onLogout }) {
   const [status, setStatus] = useState('');
   const scrollRef = useRef(null);
 
-  // iOS Safari Audio Unlock
-  const unlockAudio = () => {
-    const audio = new Audio();
-    audio.src = "data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQQAAAAAAA==";
-    audio.play().catch(() => {});
-  };
+  // Dropped unlockAudio because starting audio consumes the user gesture token on iOS Safari,
+  // which blocks the subsequent SpeechRecognition.start() invocation.
 
   useEffect(() => {
     localStorage.setItem('deal_chat_v5', JSON.stringify(messages));
@@ -46,7 +42,7 @@ export default function Conversation({ onLogout }) {
   };
 
   const startRecognition = (active, target) => {
-    unlockAudio();
+
     if (typeof window === 'undefined') return;
     
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -150,9 +146,9 @@ export default function Conversation({ onLogout }) {
       <div className="chat-input-bar" style={{ height: 'auto', paddingBottom: 'calc(20px + env(safe-area-inset-bottom))' }}>
          <div className="container">
             {status && <div className="flex-center pulse" style={{ marginBottom: 15, fontSize: 16, fontWeight: 900, color: '#006C35' }}>{status}</div>}
-            <div style={{ display: 'flex', gap: 15, width: '100%' }}>
+            <div className="mobile-stack">
                <button 
-                 onPointerDown={() => startRecognition(langA, langB)} 
+                 onClick={() => startRecognition(langA, langB)} 
                  disabled={!!recording}
                  className="btn-primary" 
                  style={{ 
@@ -162,13 +158,13 @@ export default function Conversation({ onLogout }) {
                  }}
                >
                   <Mic size={42} /> 
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                    <span style={{ fontSize: 18, fontWeight: 900 }}>Talk</span>
-                    <span style={{ fontSize: 12, opacity: 0.8 }}>{langA.label}</span>
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+                    <span style={{ fontSize: 22, fontWeight: 900 }}>Talk {langA.label}</span>
+                    <span style={{ fontSize: 13, opacity: 0.8 }}>Tap to translate</span>
                   </div>
                </button>
                <button 
-                 onPointerDown={() => startRecognition(langB, langA)} 
+                 onClick={() => startRecognition(langB, langA)} 
                  disabled={!!recording}
                  className="btn-primary" 
                  style={{ 
@@ -178,9 +174,9 @@ export default function Conversation({ onLogout }) {
                  }}
                >
                   <Mic size={42} />
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                    <span style={{ fontSize: 18, fontWeight: 900 }}>Talk</span>
-                    <span style={{ fontSize: 12, opacity: 0.8 }}>{langB.label}</span>
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+                    <span style={{ fontSize: 22, fontWeight: 900 }}>Talk {langB.label}</span>
+                    <span style={{ fontSize: 13, opacity: 0.8 }}>Tap to translate</span>
                   </div>
                </button>
             </div>

@@ -1,9 +1,9 @@
 import { useState, useRef, useEffect } from 'react';
 import { Mic, Trash2, Globe, LogOut, ChevronDown, Sparkles, X } from 'lucide-react';
-import { translateText, analyzeHistory, speakText } from '../services/api';
+import { translateText, translateAudio, analyzeHistory, speakText } from '../services/api';
 
 const SYSTEM_LANGS = [
-  { code: 'ur', label: 'Urdu', flag: '🇵🇰', locale: 'ur-IN' }, // Changed to ur-IN to improve Safari compatibility
+  { code: 'ur', label: 'Urdu', flag: '🇵🇰', locale: 'ur-IN' },
   { code: 'en', label: 'English', flag: '🇺🇸', locale: 'en-US' },
   { code: 'ar', label: 'Arabic', flag: '🇸🇦', locale: 'ar-SA' },
   { code: 'zh-CN', label: 'Chinese', flag: '🇨🇳', locale: 'zh-CN' },
@@ -21,10 +21,10 @@ export default function Conversation({ onLogout }) {
   const [langB, setLangB] = useState(SYSTEM_LANGS[2]); 
   const [recording, setRecording] = useState(null);
   const [status, setStatus] = useState('');
+  
   const scrollRef = useRef(null);
-
-  // Dropped unlockAudio because starting audio consumes the user gesture token on iOS Safari,
-  // which blocks the subsequent SpeechRecognition.start() invocation.
+  const _mediaRecorderRef = useRef(null);
+  const _audioStreamRef = useRef(null);
 
   useEffect(() => {
     localStorage.setItem('deal_chat_v5', JSON.stringify(messages));
@@ -44,12 +44,109 @@ export default function Conversation({ onLogout }) {
     } catch (err) {}
   };
 
-  const startRecognition = (active, target) => {
+  const startRecognition = async (active, target) => {
     const audioNode = document.getElementById('global-audio');
     if (audioNode) {
-       audioNode.play().catch(() => {}); // Unlock audio context on valid tap event
+       audioNode.play().catch(() => {});
     }
 
+    // ============================================
+    // HYBRID ENGINE 1: GEMINI AUDIO VAD FOR URDU
+    // ============================================
+    if (active.code === 'ur') {
+       try {
+           const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+           _audioStreamRef.current = stream;
+           
+           const mimeType = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/mp4';
+           const recorder = new MediaRecorder(stream, { mimeType });
+           _mediaRecorderRef.current = recorder;
+           
+           let audioChunks = [];
+           recorder.ondataavailable = (e) => { if (e.data.size > 0) audioChunks.push(e.data); };
+           
+           recorder.onstop = async () => {
+               if (_audioStreamRef.current) _audioStreamRef.current.getTracks().forEach(t => t.stop());
+               
+               setStatus('Analyzing audio...');
+               
+               const blob = new Blob(audioChunks, { type: mimeType });
+               const reader = new FileReader();
+               reader.readAsDataURL(blob);
+               reader.onloadend = async () => {
+                   const base64Str = reader.result;
+                   try {
+                       const res = await translateAudio(base64Str, mimeType, active.code, target.code);
+                       if (res && res.translation && !res.translation.includes("(Error")) {
+                           setMessages(p => [...p, { id: Date.now(), speaker: active.code, original: res.original, translated: res.translation, flag: active.flag }]);
+                           speak(res.translation, target.code);
+                       } else {
+                           setStatus('Could not map audio');
+                           setTimeout(()=>setStatus(''), 2000);
+                       }
+                   } catch(e) {}
+                   setRecording(null);
+                   setStatus('');
+               };
+           };
+
+           // --- CUSTOM SILENCE DETECTION (VAD) ---
+           const AudioContext = window.AudioContext || window.webkitAudioContext;
+           const audioCtx = new AudioContext();
+           const analyser = audioCtx.createAnalyser();
+           const mediaNode = audioCtx.createMediaStreamSource(stream);
+           mediaNode.connect(analyser);
+           analyser.fftSize = 512;
+           const dataArray = new Uint8Array(analyser.frequencyBinCount);
+           
+           let silenceTimer = null;
+           let hasSpoken = false;
+
+           const checkSilence = () => {
+               if(recorder.state !== 'recording') return;
+               analyser.getByteFrequencyData(dataArray);
+               let sum = 0;
+               for(let i=0; i<dataArray.length; i++) sum += dataArray[i];
+               let avg = sum / dataArray.length;
+
+               if (avg > 12) { // 12/255 Volume threshold for Speech
+                   hasSpoken = true;
+                   if (silenceTimer) clearTimeout(silenceTimer);
+                   silenceTimer = setTimeout(() => {
+                       if (hasSpoken && recorder.state === 'recording') {
+                           recorder.stop();
+                           audioCtx.close().catch(()=>{});
+                       }
+                   }, 1500); // Wait 1.5 seconds of silence before Auto-Stop
+               }
+               requestAnimationFrame(checkSilence);
+           };
+
+           recorder.start();
+           setRecording(active.code);
+           setStatus(`Listening to ${active.label}...`);
+           checkSilence();
+           
+           // Hard failsafe auto-stop at 15s to prevent runaway recording
+           setTimeout(()=>{
+               if (recorder.state === 'recording') {
+                   recorder.stop();
+                   audioCtx.close().catch(()=>{});
+               }
+           }, 15000);
+
+       } catch(err) {
+           console.error("VAD Mic Error:", err);
+           setStatus('Mic Blocked');
+           setRecording(null);
+           setTimeout(()=>setStatus(''), 2000);
+       }
+       return;
+    }
+
+    // ============================================
+    // HYBRID ENGINE 2: NATIVE SYSTEM FOR ALL OTHERS
+    // ============================================
     if (typeof window === 'undefined') return;
     
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;

@@ -5,13 +5,15 @@ import urllib.parse
 import json
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from dotenv import load_dotenv
 import google.generativeai as genai
 
 load_dotenv()
 
-# --- CONFIGURATION & AI SETUP ---
+# --- AI SETUP ---
 api_key = os.getenv("GOOGLE_API_KEY")
 model = None
 if api_key:
@@ -21,12 +23,11 @@ if api_key:
     except:
         model = None
 
-app = FastAPI(title="Global AI Translation API")
+app = FastAPI()
 
-# Professional CORS Policy
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], # Tighten this in final production if needed
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -40,9 +41,8 @@ class TranslateRequest(BaseModel):
 class AnalysisRequest(BaseModel):
     history: list
 
-# --- HELPER LOGIC ---
+# --- LOGIC ---
 def google_translate_fallback(text, source, target):
-    """Reliable fallback using Google Translate Public API"""
     try:
         s = 'zh-CN' if source.startswith('zh') else source
         t = 'zh-CN' if target.startswith('zh') else target
@@ -52,58 +52,44 @@ def google_translate_fallback(text, source, target):
         with urllib.request.urlopen(request_obj) as response:
             data = json.loads(response.read().decode())
             return "".join([sentence[0] for sentence in data[0] if sentence[0]])
-    except Exception as e:
-        print(f"Fallback Error: {e}")
-        return text
+    except: return text
 
-# --- ENDPOINTS ---
-@app.get("/")
-async def root():
-    return {"status": "Global AI Translation API Online", "ai_model": "Gemini 1.5 Flash"}
-
-@app.post("/translate")
+@app.post("/api/translate")
 async def translate(req: TranslateRequest):
-    if not req.text:
-        return {"translation": ""}
-    
     if model:
         try:
-            prompt = f"Translate accurately from {req.source} to {req.target}. Only output the translation, no extra text: {req.text}"
+            prompt = f"Translate from {req.source} to {req.target}: {req.text}"
             response = model.generate_content(prompt)
             if response and response.text:
                 return {"translation": response.text.strip()}
-        except Exception as e:
-            print(f"Gemini Error: {e}")
-            
-    # Fallback to Google Translate if Gemini fails or is not configured
+        except: pass
     return {"translation": google_translate_fallback(req.text, req.source, req.target)}
 
-@app.post("/analyze-history")
-async def analyze_history(req: AnalysisRequest):
-    if not model or not req.history:
-        return {"summary": "Intelligence engine ready. Start chatting for live insights."}
-    try:
-        chat_log = "\n".join([f"{m.get('speaker')}: {m.get('original')} -> {m.get('translated')}" for m in req.history[-10:]])
-        prompt = f"Analyze this business discussion log and provide a professional summary in Urdu (Max 2 sentences): \n\n{chat_log}"
-        response = model.generate_content(prompt)
-        return {"summary": response.text.strip()}
-    except Exception as e:
-        print(f"Analysis Error: {e}")
-        return {"summary": "Business briefing temporarily unavailable."}
+# --- VERCEL STATIC SERVING ---
+# Get the absolute path to the static directory
+current_dir = os.path.dirname(os.path.abspath(__file__))
+static_path = os.path.join(current_dir, "static")
 
-@app.post("/speak")
-async def text_to_speech(request: dict):
-    try:
-        text = request.get("text", "")
-        lang = request.get("lang", "en").split('-')[0]
-        encoded_text = urllib.parse.quote(text)
-        url = f"https://translate.google.com/translate_tts?ie=UTF-8&q={encoded_text}&tl={lang}&client=tw-ob"
-        request_obj = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-        with urllib.request.urlopen(request_obj) as response:
-            return {"audio": base64.b64encode(response.read()).decode(), "format": "mp3"}
-    except:
-        return {"audio": ""}
+@app.get("/api/health")
+def health():
+    return {"status": "ok", "static_path": static_path, "exists": os.path.exists(static_path)}
 
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+# Serve static files if they exist
+if os.path.exists(static_path):
+    app.mount("/assets", StaticFiles(directory=os.path.join(static_path, "assets")), name="assets")
+
+    @app.get("/{rest_of_path:path}")
+    async def serve_frontend(rest_of_path: str):
+        if rest_of_path.startswith("api/"):
+            return None
+        
+        file_path = os.path.join(static_path, rest_of_path)
+        if os.path.isfile(file_path):
+            return FileResponse(file_path)
+        
+        # Fallback to index.html for SPA routing
+        return FileResponse(os.path.join(static_path, "index.html"))
+else:
+    @app.get("/")
+    def no_files():
+        return {"error": "Serverless function running, but UI assets not detected."}

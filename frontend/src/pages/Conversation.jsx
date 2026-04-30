@@ -1,9 +1,9 @@
 import { useState, useRef, useEffect } from 'react';
-import { Mic, Trash2, Globe, LogOut, ChevronDown, Sparkles, X } from 'lucide-react';
-import { translateText, analyzeHistory, speakText } from '../services/api';
+import { Mic, Trash2, Globe, LogOut, ChevronDown, Sparkles, X, Square } from 'lucide-react';
+import { translateAudio, analyzeHistory, speakText } from '../services/api';
 
 const SYSTEM_LANGS = [
-  { code: 'ur', label: 'Urdu', flag: '🇵🇰', locale: 'ur-IN' }, // Changed to ur-IN to improve Safari compatibility
+  { code: 'ur', label: 'Urdu', flag: '🇵🇰', locale: 'ur-IN' },
   { code: 'en', label: 'English', flag: '🇺🇸', locale: 'en-US' },
   { code: 'ar', label: 'Arabic', flag: '🇸🇦', locale: 'ar-SA' },
   { code: 'zh-CN', label: 'Chinese', flag: '🇨🇳', locale: 'zh-CN' },
@@ -19,12 +19,16 @@ export default function Conversation({ onLogout }) {
   const [showAiModal, setShowAiModal] = useState(false);
   const [langA, setLangA] = useState(SYSTEM_LANGS[0]); 
   const [langB, setLangB] = useState(SYSTEM_LANGS[2]); 
-  const [recording, setRecording] = useState(null);
+  
   const [status, setStatus] = useState('');
-  const scrollRef = useRef(null);
+  
+  // Audio Recording State
+  const [recordingLang, setRecordingLang] = useState(null); // Which language code is currently recording
+  const mediaRecorderRef = useRef(null);
+  const audioChunksRef = useRef([]);
+  const streamRef = useRef(null);
 
-  // Dropped unlockAudio because starting audio consumes the user gesture token on iOS Safari,
-  // which blocks the subsequent SpeechRecognition.start() invocation.
+  const scrollRef = useRef(null);
 
   useEffect(() => {
     localStorage.setItem('deal_chat_v5', JSON.stringify(messages));
@@ -44,59 +48,91 @@ export default function Conversation({ onLogout }) {
     } catch (err) {}
   };
 
-  const startRecognition = (active, target) => {
+  const startRecording = async (activeLangObj) => {
+    // Unlock iOS Audio play early
     const audioNode = document.getElementById('global-audio');
-    if (audioNode) {
-       audioNode.play().catch(() => {}); // Unlock audio context on valid tap event
-    }
-
-    if (typeof window === 'undefined') return;
-    
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-      setStatus("Error: Browser not supported");
-      return;
-    }
+    if (audioNode) audioNode.play().catch(() => {});
 
     try {
-      const r = new SpeechRecognition();
-      r.lang = active.locale;
-      r.continuous = false;
-      r.interimResults = false;
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      streamRef.current = stream;
+      
+      const mimeType = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/mp4';
+      const recorder = new MediaRecorder(stream, { mimeType });
+      
+      mediaRecorderRef.current = recorder;
+      audioChunksRef.current = [];
 
-      setRecording(active.code);
-      setStatus(`Listening to ${active.label}...`);
-
-      r.onresult = async (e) => {
-        const text = e.results[0][0].transcript;
-        if (!text) return;
-        setStatus('Processing...');
-        try {
-          const data = await translateText(text, active.code, target.code);
-          const trans = data.translation || "(Error)";
-          setMessages(p => [...p, { id: Date.now(), speaker: active.code, original: text, translated: trans, flag: active.flag }]);
-          speak(trans, target.code);
-        } catch (err) {}
-        setStatus('');
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) audioChunksRef.current.push(e.data);
       };
 
-      r.onerror = (err) => {
-        console.error("Speech Error:", err.error);
-        setRecording(null);
-        setStatus(err.error === 'not-allowed' ? 'Mic Blocked' : 'Try Again');
-        setTimeout(() => setStatus(''), 2000);
+      recorder.onstop = async () => {
+        const audioBlob = new Blob(audioChunksRef.current, { type: mimeType });
+        
+        // Stop all tracks in stream
+        if (streamRef.current) {
+            streamRef.current.getTracks().forEach(track => track.stop());
+        }
+
+        setStatus('Translating with AI...');
+        
+        // Convert Blob to Base64
+        const reader = new FileReader();
+        reader.readAsDataURL(audioBlob);
+        reader.onloadend = async () => {
+           let base64String = reader.result;
+           const targetLangObj = activeLangObj.code === langA.code ? langB : langA;
+           
+           try {
+             // Hit the new LLM Audio Pipeline
+             const res = await translateAudio(base64String, mimeType, activeLangObj.code, targetLangObj.code);
+             
+             if (res && res.translation) {
+                setMessages(p => [...p, { 
+                  id: Date.now(), 
+                  speaker: activeLangObj.code, 
+                  original: res.original || "(Captured Audio)", 
+                  translated: res.translation, 
+                  flag: activeLangObj.flag 
+                }]);
+                
+                speak(res.translation, targetLangObj.code);
+             }
+           } catch (error) {
+              console.error(error);
+           }
+           setStatus('');
+           setRecordingLang(null);
+        };
       };
 
-      r.onend = () => {
-        setRecording(null);
-        if (status !== 'Processing...') setStatus('');
-      };
+      recorder.start();
+      setRecordingLang(activeLangObj.code);
+      setStatus(`Recording ${activeLangObj.label}...`);
 
-      r.start();
-    } catch (e) {
-      console.error(e);
-      setStatus("Error: Mic Init Failed");
+    } catch (err) {
+      console.error(err);
+      setStatus('Mic Permission Denied');
+      setTimeout(() => setStatus(''), 2000);
     }
+  };
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+        mediaRecorderRef.current.stop();
+        setStatus('Processing...');
+    }
+  };
+
+  const handleActionClick = (clickedLangObj) => {
+     if (recordingLang === clickedLangObj.code) {
+         // Stop recording
+         stopRecording();
+     } else if (!recordingLang) {
+         // Start recording
+         startRecording(clickedLangObj);
+     }
   };
 
   return (
@@ -113,7 +149,7 @@ export default function Conversation({ onLogout }) {
          </div>
       </header>
 
-      {/* Language Bar - BIGGER & SMOOTHER */}
+      {/* Language Bar */}
       <div style={{ padding: '20px 5%', background: '#fff', borderBottom: '1px solid #efefef' }}>
          <div className="mobile-stack" style={{ gap: 12 }}>
             <div style={{ flex: 1, position: 'relative' }}>
@@ -131,13 +167,13 @@ export default function Conversation({ onLogout }) {
          </div>
       </div>
 
-      {/* Chat Area - MORE ROOM */}
+      {/* Chat Area */}
       <main ref={scrollRef} className="container hide-scroll" style={{ flex: 1, overflowY: 'auto', padding: '30px 20px 340px', display: 'flex', flexDirection: 'column' }}>
         {messages.length === 0 ? (
           <div className="flex-center" style={{ height: '35vh', flexDirection: 'column', color: '#ddd', textAlign: 'center' }}>
             <Globe size={120} style={{ opacity: 0.08, marginBottom: 25 }}/>
             <p style={{ fontWeight: 900, fontSize: 24, color: '#aaa' }}>Global Conversation</p>
-            <p style={{ fontSize: 14 }}>Tap a mic to translate</p>
+            <p style={{ fontSize: 14 }}>Tap to record audio. Tap again to send.</p>
           </div>
         ) : (
           messages.map(m => (
@@ -150,41 +186,41 @@ export default function Conversation({ onLogout }) {
         )}
       </main>
 
-      {/* FIXED ACTION AREA - CHORA & SMOOTH */}
+      {/* FIXED ACTION AREA */}
       <div className="chat-input-bar" style={{ height: 'auto', paddingBottom: 'calc(20px + env(safe-area-inset-bottom))' }}>
          <div className="container">
             {status && <div className="flex-center pulse" style={{ marginBottom: 15, fontSize: 16, fontWeight: 900, color: '#006C35' }}>{status}</div>}
             <div className="mobile-stack">
                <button 
-                 onClick={() => startRecognition(langA, langB)} 
-                 disabled={!!recording}
-                 className="btn-primary" 
+                 onClick={() => handleActionClick(langA)}
+                 disabled={recordingLang && recordingLang !== langA.code}
+                 className={`btn-primary ${recordingLang === langA.code ? 'pulse' : ''}`}
                  style={{ 
                     flex: 1, height: 120, 
-                    background: recording === langA.code ? '#000' : 'var(--saudi-green-gradient)', 
+                    background: recordingLang === langA.code ? '#111' : 'var(--saudi-green-gradient)', 
                     borderRadius: 30, fontSize: 24, boxShadow: '0 15px 35px rgba(0,108,53,0.2)' 
                  }}
                >
-                  <Mic size={42} /> 
+                  {recordingLang === langA.code ? <Square size={42} fill="#fff"/> : <Mic size={42} />} 
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
-                    <span style={{ fontSize: 22, fontWeight: 900 }}>Talk {langA.label}</span>
-                    <span style={{ fontSize: 13, opacity: 0.8 }}>Tap to translate</span>
+                    <span style={{ fontSize: 22, fontWeight: 900 }}>{recordingLang === langA.code ? 'Stop' : `Talk ${langA.label}`}</span>
+                    <span style={{ fontSize: 13, opacity: 0.8 }}>{recordingLang === langA.code ? 'Analyzing...' : 'Tap to Record'}</span>
                   </div>
                </button>
                <button 
-                 onClick={() => startRecognition(langB, langA)} 
-                 disabled={!!recording}
-                 className="btn-primary" 
+                 onClick={() => handleActionClick(langB)}
+                 disabled={recordingLang && recordingLang !== langB.code}
+                 className={`btn-primary ${recordingLang === langB.code ? 'pulse' : ''}`}
                  style={{ 
                     flex: 1, height: 120, 
-                    background: recording === langB.code ? '#000' : 'var(--zh-red-gradient)', 
+                    background: recordingLang === langB.code ? '#111' : 'var(--zh-red-gradient)', 
                     borderRadius: 30, fontSize: 24, boxShadow: '0 15px 35px rgba(238,28,37,0.2)' 
                  }}
                >
-                  <Mic size={42} />
+                  {recordingLang === langB.code ? <Square size={42} fill="#fff"/> : <Mic size={42} />}
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
-                    <span style={{ fontSize: 22, fontWeight: 900 }}>Talk {langB.label}</span>
-                    <span style={{ fontSize: 13, opacity: 0.8 }}>Tap to translate</span>
+                    <span style={{ fontSize: 22, fontWeight: 900 }}>{recordingLang === langB.code ? 'Stop' : `Talk ${langB.label}`}</span>
+                    <span style={{ fontSize: 13, opacity: 0.8 }}>{recordingLang === langB.code ? 'Analyzing...' : 'Tap to Record'}</span>
                   </div>
                </button>
             </div>

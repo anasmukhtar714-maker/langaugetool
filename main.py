@@ -3,6 +3,7 @@ import base64
 import urllib.request
 import urllib.parse
 import json
+import re
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -107,6 +108,55 @@ async def text_to_speech(request: dict):
             return {"audio": base64.b64encode(response.read()).decode(), "format": "mp3"}
     except:
         return {"audio": ""}
+
+@app.post("/audio-translate")
+async def audio_translate(request: dict):
+    audio_b64 = request.get("audio_base64", "")
+    mime_type = request.get("mime_type", "audio/webm")
+    source = request.get("source", "ur")
+    target = request.get("target", "zh-CN")
+
+    if not model or not audio_b64:
+        return {"translation": "Error: AI engine offline.", "original": "Audio unavailable"}
+
+    try:
+        # Strip potential data URI prefix
+        if "," in audio_b64:
+            audio_b64 = audio_b64.split(",")[1]
+            
+        audio_data = base64.b64decode(audio_b64)
+        
+        prompt = f"""
+        You are a highly accurate professional audio interpreter.
+        The user is speaking in language code: {source}.
+        1. Transcribe EXACTLY what they said in their original {source} language.
+        2. Translate it perfectly into {target}.
+        
+        You MUST output ONLY a valid RAW JSON object with NO markdown blocks and NO formatting tags. 
+        The JSON must have exactly two keys: "original" and "translated".
+        Example: {{"original": "hello", "translated": "hola"}}
+        """
+        
+        response = model.generate_content([
+            prompt, 
+            {"mime_type": mime_type, "data": audio_data}
+        ])
+        
+        txt = response.text.strip()
+        # Clean markdown code blocks if gemini returned them anyway
+        if txt.startswith("```json"):
+            txt = txt[7:-3]
+        elif txt.startswith("```"):
+            txt = txt[3:-3]
+            
+        parsed = json.loads(txt.strip())
+        return {
+            "translation": parsed.get("translated", "(Translation missing)"),
+            "original": parsed.get("original", "(Transcription missing)")
+        }
+    except Exception as e:
+        print(f"Audio translation error: {e}")
+        return {"translation": "(Audio Translation Failed)", "original": "(Could not process audio)"}
 
 @app.post("/vision")
 async def vision_analyze(request: dict):

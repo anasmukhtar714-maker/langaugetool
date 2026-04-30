@@ -7,7 +7,19 @@ import CameraTranslation from './pages/CameraTranslation';
 import DealLog from './pages/DealLog';
 import LandingPage from './pages/LandingPage';
 
-export const BottomNav = () => null;
+export const BottomNav = () => (
+  <nav className="footer-nav">
+    <NavLink to="/chat" style={({ isActive }) => ({ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', textDecoration: 'none', color: isActive ? '#006C35' : '#aaa', fontSize: '13px', fontWeight: isActive ? '900' : '600' })}>
+      <Mic size={28} /> <span>Talk</span>
+    </NavLink>
+    <NavLink to="/camera" style={({ isActive }) => ({ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', textDecoration: 'none', color: isActive ? '#006C35' : '#aaa', fontSize: '13px', fontWeight: isActive ? '900' : '600' })}>
+      <Scan size={28} /> <span>Scan</span>
+    </NavLink>
+    <NavLink to="/log" style={({ isActive }) => ({ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', textDecoration: 'none', color: isActive ? '#006C35' : '#aaa', fontSize: '13px', fontWeight: isActive ? '900' : '600' })}>
+      <History size={28} /> <span>Saved</span>
+    </NavLink>
+  </nav>
+);
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(() => localStorage.getItem('auth_token') === 'true');
@@ -46,12 +58,15 @@ function App() {
           <Route path="/login" element={isAuthenticated ? <Navigate to="/chat" replace /> : <LandingPage onUnlock={handleUnlock} />} />
           <Route path="/*" element={
             isAuthenticated ? (
-              <Routes>
-                <Route path="/chat" element={<Conversation onLogout={handleLogout} />} />
-                <Route path="/camera" element={<CameraTranslation />} />
-                <Route path="/log" element={<DealLog />} />
-                <Route path="*" element={<Navigate to="/chat" replace />} />
-              </Routes>
+              <div style={{ paddingBottom: '90px' }}>
+                <Routes>
+                  <Route path="/chat" element={<Conversation onLogout={handleLogout} />} />
+                  <Route path="/camera" element={<CameraTranslation />} />
+                  <Route path="/log" element={<DealLog />} />
+                  <Route path="*" element={<Navigate to="/chat" replace />} />
+                </Routes>
+                <BottomNav />
+              </div>
             ) : (
               <Navigate to="/login" replace />
             )

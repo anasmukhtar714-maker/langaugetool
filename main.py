@@ -1,73 +1,128 @@
-from fastapi import FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+import os
+import base64
 import urllib.request
 import urllib.parse
 import json
-import base64
+from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+from dotenv import load_dotenv
+import google.generativeai as genai
 
-app = FastAPI(title="Saudi-China Companion API")
+load_dotenv()
 
-# Setup CORS for the Vite Frontend
+# --- CONFIGURATION & AI SETUP ---
+api_key = os.getenv("GOOGLE_API_KEY")
+model = None
+if api_key:
+    try:
+        genai.configure(api_key=api_key)
+        model = genai.GenerativeModel('gemini-1.5-flash')
+    except:
+        model = None
+
+app = FastAPI(title="Global AI Translation API")
+
+# Professional CORS Policy
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Adjust this in production
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# No global OpenAI client needed anymore
 class TranslateRequest(BaseModel):
     text: str
     source: str
     target: str
 
-class VisionRequest(BaseModel):
-    image_base64: str
-    target_lang: str
+class AnalysisRequest(BaseModel):
+    history: list
 
-@app.post("/translate")
-def translate(req: TranslateRequest):
+# --- HELPER LOGIC ---
+def google_translate_fallback(text, source, target):
+    """Reliable fallback using Google Translate Public API"""
     try:
-        # 100% FREE Google Translate Fallback
-        target = 'zh-CN' if req.target.startswith('zh') else req.target
-        source = 'zh-CN' if req.source.startswith('zh') else req.source
-        
-        encoded_text = urllib.parse.quote(req.text)
-        url = f"https://translate.googleapis.com/translate_a/single?client=gtx&sl={source}&tl={target}&dt=t&q={encoded_text}"
-        
+        s = 'zh-CN' if source.startswith('zh') else source
+        t = 'zh-CN' if target.startswith('zh') else target
+        encoded_text = urllib.parse.quote(text)
+        url = f"https://translate.googleapis.com/translate_a/single?client=gtx&sl={s}&tl={t}&dt=t&q={encoded_text}"
         request_obj = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
         with urllib.request.urlopen(request_obj) as response:
             data = json.loads(response.read().decode())
-            translated = "".join([sentence[0] for sentence in data[0] if sentence[0]])
-            return {"translation": translated}
+            return "".join([sentence[0] for sentence in data[0] if sentence[0]])
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Google Translate Error: {str(e)}")
+        print(f"Fallback Error: {e}")
+        return text
 
-@app.post("/vision")
-def vision_analyze(req: VisionRequest):
-    return {"analysis": "(Mocked) تحليل للصورة: تحتوي الصورة المرفقة على عقد تجاري. لا توجد تفاصيل خطيرة، لكن السعر الإجمالي هو 5000 يوان."}
+# --- ENDPOINTS ---
+@app.get("/")
+async def root():
+    return {"status": "Global AI Translation API Online", "ai_model": "Gemini 1.5 Flash"}
+
+@app.get("/health")
+def health():
+    return {"status": "ok", "gemini": model is not None}
+
+@app.post("/translate")
+async def translate(req: TranslateRequest):
+    if not req.text:
+        return {"translation": ""}
+
+    if model:
+        try:
+            prompt = f"Translate accurately from {req.source} to {req.target}. Only output the translation, no extra text: {req.text}"
+            response = model.generate_content(prompt)
+            if response and response.text:
+                return {"translation": response.text.strip()}
+        except Exception as e:
+            print(f"Gemini Error: {e}")
+
+    # Fallback to Google Translate if Gemini fails or is not configured
+    return {"translation": google_translate_fallback(req.text, req.source, req.target)}
+
+@app.post("/analyze-history")
+async def analyze_history(req: AnalysisRequest):
+    if not model or not req.history:
+        return {"summary": "Intelligence engine ready. Start chatting for live insights."}
+    try:
+        chat_log = "\n".join([f"{m.get('speaker')}: {m.get('original')} -> {m.get('translated')}" for m in req.history[-10:]])
+        prompt = f"Analyze this business discussion log and provide a professional summary in Urdu (Max 2 sentences): \n\n{chat_log}"
+        response = model.generate_content(prompt)
+        return {"summary": response.text.strip()}
+    except Exception as e:
+        print(f"Analysis Error: {e}")
+        return {"summary": "Business briefing temporarily unavailable."}
 
 @app.post("/speak")
 async def text_to_speech(request: dict):
     try:
         text = request.get("text", "")
-        lang = request.get("lang", "zh-CN")
-        tts_lang = 'zh-CN' if lang.startswith('zh') else 'ar'
-        
+        lang = request.get("lang", "en").split('-')[0]
         encoded_text = urllib.parse.quote(text)
-        url = f"https://translate.google.com/translate_tts?ie=UTF-8&q={encoded_text}&tl={tts_lang}&client=tw-ob"
-        
+        url = f"https://translate.google.com/translate_tts?ie=UTF-8&q={encoded_text}&tl={lang}&client=tw-ob"
         request_obj = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
         with urllib.request.urlopen(request_obj) as response:
-            audio_data = response.read()
-            audio_b64 = base64.b64encode(audio_data).decode()
-            return {"audio": audio_b64, "format": "mp3"}
-    except Exception as e:
-        # If all fails, return empty to trigger local browser fallback
-        return {"audio": "", "format": "mp3"}
+            return {"audio": base64.b64encode(response.read()).decode(), "format": "mp3"}
+    except:
+        return {"audio": ""}
 
-@app.get("/health")
-def health():
-    return {"status": "ok"}
+@app.post("/vision")
+async def vision_analyze(request: dict):
+    image_b64 = request.get("image_base64", "")
+    target_lang = request.get("target_lang", "ar")
+    if not model or not image_b64:
+        return {"analysis": "Vision analysis unavailable."}
+    try:
+        image_data = base64.b64decode(image_b64)
+        prompt = f"Analyze this image and describe its contents for a business context. Translate any text to {target_lang}. Be concise."
+        response = model.generate_content([prompt, {"mime_type": "image/jpeg", "data": image_data}])
+        return {"analysis": response.text.strip()}
+    except Exception as e:
+        print(f"Vision Error: {e}")
+        return {"analysis": "Could not analyze image."}
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)

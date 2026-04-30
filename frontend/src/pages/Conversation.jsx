@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Mic, Trash2, Globe, LogOut, ChevronDown, Sparkles, X } from 'lucide-react';
+import { Mic, Trash2, Globe, LogOut, ChevronDown, Sparkles, X, Square } from 'lucide-react';
 import { translateText, analyzeHistory, speakText } from '../services/api';
 
 const SYSTEM_LANGS = [
@@ -30,6 +30,30 @@ export default function Conversation({ onLogout }) {
   const [recording, setRecording] = useState(null);
   const [status, setStatus] = useState('');
   const scrollRef = useRef(null);
+  const _recognitionRef = useRef(null);
+  const SILENT_AUDIO = "data:audio/mp3;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU5LjE2LjEwMAAAAAAAAAAAAAAA//OEAAAAAAAAAAAAAAAAAAAAAAAASW5mbwAAAA8AAAAEAAABIADAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzVMb28AAAAAAAAAAAAAAABMQU1FMy4xMDAB0AIAAAAAAAAgACMAAEhEAAABIADV2hSCAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA//MUTAAAAANIAAAAAExBTUUzLjEwMKqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq//MUTABAAAANIAAAAAExBTUUzLjEwMKqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq//MUTACAAAANIAAAAAExBTUUzLjEwMKqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq//MUTADAAAANIAAAAAExBTUUzLjEwMKqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq";
+
+  const handleActionClick = (active, target) => {
+    // Synchronous iOS Audio Context Unlock
+    const audioNode = document.getElementById('global-audio');
+    if (audioNode) {
+       audioNode.src = SILENT_AUDIO;
+       audioNode.play().catch(() => {});
+    }
+
+    if (recording === active.code) {
+        stopRecognition();
+    } else {
+        startRecognition(active, target);
+    }
+  };
+
+  const stopRecognition = () => {
+    if (_recognitionRef.current) {
+        _recognitionRef.current.stop();
+        _recognitionRef.current = null;
+    }
+  };
 
   // Dropped unlockAudio because starting audio consumes the user gesture token on iOS Safari,
   // which blocks the subsequent SpeechRecognition.start() invocation.
@@ -68,8 +92,10 @@ export default function Conversation({ onLogout }) {
 
     try {
       const r = new SpeechRecognition();
+      _recognitionRef.current = r;
       r.lang = active.locale;
-      r.continuous = false;
+      r.continuous = true; // Stay active longer to behave like GPT Voice dictation
+      r.interimResults = false;
       r.interimResults = false;
 
       setRecording(active.code);
@@ -97,6 +123,7 @@ export default function Conversation({ onLogout }) {
 
       r.onend = () => {
         setRecording(null);
+        _recognitionRef.current = null;
         if (status !== 'Processing...') setStatus('');
       };
 
@@ -164,8 +191,8 @@ export default function Conversation({ onLogout }) {
             {status && <div className="flex-center pulse" style={{ marginBottom: 15, fontSize: 16, fontWeight: 900, color: '#006C35' }}>{status}</div>}
             <div className="mobile-stack">
                <button 
-                 onClick={() => startRecognition(langA, langB)} 
-                 disabled={!!recording}
+                 onClick={() => handleActionClick(langA, langB)} 
+                 disabled={recording && recording !== langA.code}
                  className="btn-primary" 
                  style={{ 
                     flex: 1, height: 120, 
@@ -173,15 +200,15 @@ export default function Conversation({ onLogout }) {
                     borderRadius: 30, fontSize: 24, boxShadow: '0 15px 35px rgba(0,108,53,0.2)' 
                  }}
                >
-                  <Mic size={42} /> 
+                  {recording === langA.code ? <Square size={42} color="#fff" fill="#fff" className="pulse" /> : <Mic size={42} />}
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
-                    <span style={{ fontSize: 22, fontWeight: 900 }}>Talk {langA.label}</span>
-                    <span style={{ fontSize: 13, opacity: 0.8 }}>Tap to translate</span>
+                    <span style={{ fontSize: 22, fontWeight: 900 }}>{recording === langA.code ? 'Stop Recording' : `Talk ${langA.label}`}</span>
+                    <span style={{ fontSize: 13, opacity: 0.8 }}>{recording === langA.code ? 'Tap to finish & translate' : 'Tap to dictation'}</span>
                   </div>
                </button>
                <button 
-                 onClick={() => startRecognition(langB, langA)} 
-                 disabled={!!recording}
+                 onClick={() => handleActionClick(langB, langA)} 
+                 disabled={recording && recording !== langB.code}
                  className="btn-primary" 
                  style={{ 
                     flex: 1, height: 120, 
@@ -189,10 +216,10 @@ export default function Conversation({ onLogout }) {
                     borderRadius: 30, fontSize: 24, boxShadow: '0 15px 35px rgba(238,28,37,0.2)' 
                  }}
                >
-                  <Mic size={42} />
+                  {recording === langB.code ? <Square size={42} color="#fff" fill="#fff" className="pulse" /> : <Mic size={42} />}
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
-                    <span style={{ fontSize: 22, fontWeight: 900 }}>Talk {langB.label}</span>
-                    <span style={{ fontSize: 13, opacity: 0.8 }}>Tap to translate</span>
+                    <span style={{ fontSize: 22, fontWeight: 900 }}>{recording === langB.code ? 'Stop Recording' : `Talk ${langB.label}`}</span>
+                    <span style={{ fontSize: 13, opacity: 0.8 }}>{recording === langB.code ? 'Tap to finish & translate' : 'Tap to dictation'}</span>
                   </div>
                </button>
             </div>

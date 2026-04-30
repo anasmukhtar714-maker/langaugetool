@@ -125,23 +125,24 @@ export default function Conversation({ onLogout }) {
     recognitionRef.current = null;
   };
 
-  const startRecognition = (active, target) => {
+  const startRecognition = (active, target, retryLocale = null) => {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SR) {
       setStatus('❌ Use Safari on iPhone');
       setTimeout(() => setStatus(''), 3000);
       return;
     }
+    const useLocale = retryLocale || active.locale;
     try {
       const r = new SR();
       recognitionRef.current = r;
-      r.lang            = active.locale;
+      r.lang            = useLocale;
       r.continuous      = false;
       r.interimResults  = false;
       r.maxAlternatives = 1;
 
       setRecording(active.code);
-      setTextFallback(null); // clear fallback if user tries mic again
+      setTextFallback(null);
       setStatus(`🎤 ${active.flag} Listening…`);
 
       r.onresult = async (e) => {
@@ -167,18 +168,24 @@ export default function Conversation({ onLogout }) {
       r.onerror = (err) => {
         setRecording(null);
         recognitionRef.current = null;
-        const msgs = {
-          'not-allowed':            '🔒 Mic blocked — allow in Settings',
-          'language-not-supported': null, // handled below with text fallback
-          'no-speech':              '🔇 No speech — try again',
-          'network':                '📶 Network error',
-          'audio-capture':          '🎙️ Mic not found',
-        };
+
         if (err.error === 'language-not-supported') {
-          // Show text input so user can type instead
+          // Retry once with short locale (e.g. 'hi' instead of 'hi-IN')
+          const shortLocale = active.locale.split('-')[0];
+          if (!retryLocale && shortLocale !== active.locale) {
+            startRecognition(active, target, shortLocale);
+            return;
+          }
+          // Both failed — show text fallback
           setStatus('');
           setTextFallback({ active, target });
         } else {
+          const msgs = {
+            'not-allowed':   '🔒 Mic blocked — allow in iPhone Settings',
+            'no-speech':     '🔇 No speech — try again',
+            'network':       '📶 Network error',
+            'audio-capture': '🎙️ Mic not found',
+          };
           setStatus(msgs[err.error] || `❌ ${err.error}`);
           setTimeout(() => setStatus(''), 3500);
         }

@@ -49,44 +49,43 @@ const LandingPage = ({ onUnlock }) => {
       </nav>
 
       {/* Hero Section */}
-      <section style={{ display: 'flex', flexWrap: 'wrap', padding: '100px 8% 60px', alignItems: 'center', gap: 60, maxWidth: 1400, margin: '0 auto' }}>
-        <div style={{ flex: '2 1 600px' }}>
+      <section style={{ display: 'flex', flexWrap: 'wrap', padding: '60px 5%', alignItems: 'center', gap: 40, maxWidth: 1400, margin: '0 auto' }}>
+        <div style={{ flex: '1 1 300px' }}>
           <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: '#e8f5e9', padding: '8px 16px', borderRadius: 100, marginBottom: 25 }}>
              <Heart size={16} color="var(--saudi-green)" />
              <span style={{ fontSize: 13, fontWeight: 800, color: 'var(--saudi-green)', textTransform: 'uppercase', letterSpacing: 1 }}>Real-Time Interpreter</span>
           </div>
-          <h1 style={{ fontSize: 'clamp(38px, 6vw, 72px)', fontWeight: 900, lineHeight: 1.1, letterSpacing: -3, marginBottom: 24 }}>
+          <h1 style={{ fontSize: 'clamp(32px, 5vw, 64px)', fontWeight: 900, lineHeight: 1.1, letterSpacing: -2, marginBottom: 24 }}>
              تحدث مع العالم <br/>
              <span style={{ color: 'var(--saudi-green)' }}>Everywhere</span> You Go.
           </h1>
-          <p style={{ fontSize: 19, color: '#666', lineHeight: 1.6, marginBottom: 40, maxWidth: 600 }}>
+          <p style={{ fontSize: 18, color: '#666', lineHeight: 1.6, marginBottom: 40, maxWidth: 600 }}>
              Forget the language gap. Simple, fast, and secure voice translation for everyone. 
              Bringing people together, one word at a time.
           </p>
           <div style={{ display: 'flex', gap: 15 }}>
-             <button onClick={() => document.getElementById('auth').scrollIntoView({ behavior: 'smooth' })} style={{ padding: '20px 40px', background: 'var(--saudi-green-gradient)', color: '#fff', border: 'none', borderRadius: 100, fontSize: 18, fontWeight: 800, cursor: 'pointer', boxShadow: '0 20px 40px rgba(0,108,53,0.15)' }}>
+             <button onClick={() => document.getElementById('auth').scrollIntoView({ behavior: 'smooth' })} style={{ padding: '18px 36px', background: 'var(--saudi-green-gradient)', color: '#fff', border: 'none', borderRadius: 100, fontSize: 17, fontWeight: 800, cursor: 'pointer', boxShadow: '0 20px 40px rgba(0,108,53,0.15)' }}>
                 Get Started Free
              </button>
           </div>
         </div>
 
-        {/* Fixing the Demo card animation error */}
-        <div style={{ flex: '1 1 450px' }}>
+        <div style={{ flex: '1 1 300px' }}>
            <div style={{ 
-             background: '#0D1117', borderRadius: 48, padding: 40, boxShadow: '0 40px 100px rgba(0,0,0,0.15)', border: '1px solid rgba(0,0,0,0.05)',
+             background: '#0D1117', borderRadius: 32, padding: 30, boxShadow: '0 30px 80px rgba(0,0,0,0.15)', border: '1px solid rgba(0,0,0,0.05)',
              animation: 'float 6s infinite ease-in-out'
            }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 35 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 25 }}>
                  <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-                    <div style={{ width: 12, height: 12, borderRadius: '50%', background: '#4CAF50', boxShadow: '0 0 10px #4CAF50' }}></div>
-                    <span style={{ fontSize: 11, fontWeight: 900, color: '#999', letterSpacing: 2 }}>VOICE ACTIVE</span>
+                    <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#4CAF50', boxShadow: '0 0 10px #4CAF50' }}></div>
+                    <span style={{ fontSize: 10, fontWeight: 900, color: '#999', letterSpacing: 2 }}>VOICE ACTIVE</span>
                  </div>
-                 <Mic size={20} color="var(--saudi-green)" />
+                 <Mic size={18} color="var(--saudi-green)" />
               </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
                  <div style={{ textAlign: 'center', padding: '10px 0' }}>
-                    <div style={{ display: 'flex', justifyContent: 'center', gap: 4, height: 40, alignItems: 'center' }}>
+                    <div style={{ display: 'flex', justifyContent: 'center', gap: 3, height: 36, alignItems: 'center' }}>
                        {[1,2,3,4,5,6,7,8,7,6,5,4,3,2,1].map((h, i) => (
                          <div key={i} style={{ width: 3, height: h * 4, background: 'var(--saudi-green)', borderRadius: 2, animation: 'wave 0.8s infinite', animationDelay: `${i * 0.05}s` }}></div>
                        ))}
@@ -94,13 +93,13 @@ const LandingPage = ({ onUnlock }) => {
                  </div>
 
                  <div key={demoStep}>
-                    <div style={{ fontSize: 13, textTransform: 'uppercase', color: 'var(--gold)', fontWeight: 900, marginBottom: 8, letterSpacing: 1 }}>
+                    <div style={{ fontSize: 11, textTransform: 'uppercase', color: 'var(--gold)', fontWeight: 900, marginBottom: 8, letterSpacing: 1 }}>
                        {activeDemo.icon} Translation
                     </div>
-                    <div style={{ fontSize: 24, fontWeight: 800, color: '#fff', marginBottom: 10 }}>
+                    <div style={{ fontSize: 20, fontWeight: 800, color: '#fff', marginBottom: 10 }}>
                        "{activeDemo.text}"
                     </div>
-                    <div style={{ fontSize: 18, fontWeight: 600, color: '#666', borderTop: '1px solid #333', paddingTop: 15 }}>
+                    <div style={{ fontSize: 16, fontWeight: 600, color: '#666', borderTop: '1px solid #333', paddingTop: 15 }}>
                        ✨ {activeDemo.trans}
                     </div>
                  </div>

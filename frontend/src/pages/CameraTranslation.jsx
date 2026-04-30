@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { Camera, RefreshCw, Upload, FileText, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const API_BASE = import.meta.env.VITE_API_URL || "https://web-production-c92ac.up.railway.app";
 
 const CameraTranslation = () => {
   const [image, setImage] = useState(null);
@@ -82,16 +82,16 @@ const CameraTranslation = () => {
                 Point your camera at a Chinese invoice or Arabic contract to translate instantly.
               </p>
 
-              <div style={{ display: 'flex', gap: 10, marginTop: 30 }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 30 }}>
                 <button 
                   onClick={() => { setTargetLang('ar'); fileInputRef.current.click(); }}
-                  style={{ flex: 1, padding: '14px', background: 'var(--saudi-green-gradient)', color: '#fff', border: 'none', borderRadius: 16, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+                  style={{ flex: '1 1 140px', padding: '14px', background: 'var(--saudi-green-gradient)', color: '#fff', border: 'none', borderRadius: 16, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
                 >
                    🇸🇦 To Arabic
                 </button>
                 <button 
                   onClick={() => { setTargetLang('zh'); fileInputRef.current.click(); }}
-                  style={{ flex: 1, padding: '14px', background: 'var(--zh-red-gradient)', color: '#fff', border: 'none', borderRadius: 16, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+                  style={{ flex: '1 1 140px', padding: '14px', background: 'var(--zh-red-gradient)', color: '#fff', border: 'none', borderRadius: 16, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
                 >
                    🇨🇳 To Chinese
                 </button>

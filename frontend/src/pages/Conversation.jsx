@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { Mic, Send, Share2, Trash2, Globe, PlayCircle, LogOut, ChevronDown, Sparkles, Volume2, Info, X } from 'lucide-react';
 import { BottomNav } from '../App';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const API_BASE = import.meta.env.VITE_API_URL || "https://web-production-c92ac.up.railway.app";
 
 const SYSTEM_LANGS = [
   { code: 'ur', label: 'Urdu', flag: '🇵🇰', locale: 'ur-PK' },
@@ -123,15 +123,15 @@ export default function Conversation({ onLogout }) {
       </header>
 
       {/* Optimized Language Bar - Larger and cleaner */}
-      <div style={{ display: 'flex', gap: 12, padding: '15px 20px', background: '#fff', borderBottom: '1px solid #f1f3f5' }}>
-        <div style={{ flex: 1, position: 'relative' }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, padding: '15px 20px', background: '#fff', borderBottom: '1px solid #f1f3f5' }}>
+        <div style={{ flex: '1 1 150px', position: 'relative' }}>
           <select value={langA.code} onChange={(e) => setLangA(SYSTEM_LANGS.find(l => l.code === e.target.value))} style={{ width: '100%', padding: '14px', borderRadius: 16, border: '1px solid #eee', background: '#fcfcfc', fontWeight: 900, fontSize: 14, color: '#000', appearance: 'none' }}>
             {SYSTEM_LANGS.map(l => <option key={l.code} value={l.code}>{l.flag} {l.label}</option>)}
           </select>
           <ChevronDown size={14} style={{ position: 'absolute', right: 14, top: 18, opacity: 0.3 }}/>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', opacity: 0.2 }}><Globe size={18}/></div>
-        <div style={{ flex: 1, position: 'relative' }}>
+        <div style={{ display: 'none', alignItems: 'center', opacity: 0.2 }} id="desktop-globe"><Globe size={18}/></div>
+        <div style={{ flex: '1 1 150px', position: 'relative' }}>
           <select value={langB.code} onChange={(e) => setLangB(SYSTEM_LANGS.find(l => l.code === e.target.value))} style={{ width: '100%', padding: '14px', borderRadius: 16, border: '1px solid #eee', background: '#fcfcfc', fontWeight: 900, fontSize: 14, color: '#000', appearance: 'none' }}>
             {SYSTEM_LANGS.map(l => <option key={l.code} value={l.code}>{l.flag} {l.label}</option>)}
           </select>
@@ -184,21 +184,21 @@ export default function Conversation({ onLogout }) {
       )}
 
       {/* Unified Action Buttons - Large and clear */}
-      <footer style={{ position: 'fixed', bottom: 75, left: 0, right: 0, zIndex: 1000, background: '#fff', padding: '20px', borderTop: '1px solid #eee' }}>
-          <div style={{ display: 'flex', gap: 12 }}>
+      <footer style={{ position: 'fixed', bottom: 75, left: 0, right: 0, zIndex: 1000, background: '#fff', padding: '15px', borderTop: '1px solid #eee' }}>
+          <div className="action-button-container" style={{ display: 'flex', flexDirection: window.innerWidth < 640 ? 'column' : 'row', gap: 10 }}>
             <button 
               onClick={() => startRecognition(langA, langB)} 
               disabled={!!recording}
-              style={{ flex: 1, height: 85, background: recording === langA.code ? '#1A1A1A' : '#006C35', color: '#fff', borderRadius: 24, border: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8, cursor: 'pointer', boxShadow: '0 10px 25px rgba(0,108,53,0.15)' }}
+              style={{ flex: 1, height: 75, background: recording === langA.code ? '#1A1A1A' : 'var(--saudi-green)', color: '#fff', borderRadius: 20, border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, cursor: 'pointer', boxShadow: '0 8px 20px rgba(0,108,53,0.15)' }}
             >
-              <Mic size={28}/> <span style={{ fontWeight: 900, fontSize: 13 }}>Talk {langA.label}</span>
+              <Mic size={24}/> <span style={{ fontWeight: 900, fontSize: 13 }}>Talk {langA.label}</span>
             </button>
             <button 
               onClick={() => startRecognition(langB, langA)} 
               disabled={!!recording}
-              style={{ flex: 1, height: 85, background: recording === langB.code ? '#1A1A1A' : '#EE1C25', color: '#fff', borderRadius: 24, border: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 7, cursor: 'pointer', boxShadow: '0 10px 25px rgba(238,28,37,0.15)' }}
+              style={{ flex: 1, height: 75, background: recording === langB.code ? '#1A1A1A' : '#EE1C25', color: '#fff', borderRadius: 20, border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, cursor: 'pointer', boxShadow: '0 8px 20px rgba(238,28,37,0.15)' }}
             >
-              <Mic size={28}/> <span style={{ fontWeight: 900, fontSize: 13 }}>Talk {langB.label}</span>
+              <Mic size={24}/> <span style={{ fontWeight: 900, fontSize: 13 }}>Talk {langB.label}</span>
             </button>
           </div>
       </footer>

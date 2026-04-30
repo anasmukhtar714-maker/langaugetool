@@ -2,16 +2,9 @@ import { useState, useRef, useEffect } from 'react';
 import { Mic, Trash2, Globe, LogOut, ChevronDown, Sparkles, X, Square } from 'lucide-react';
 import { analyzeHistory } from '../services/api';
 
-const SYSTEM_LANGS = [
-  { code: 'ur',    label: 'Urdu',    flag: '🇵🇰', locale: 'ur-PK' },
-  { code: 'en',    label: 'English', flag: '🇺🇸', locale: 'en-US' },
-  { code: 'ar',    label: 'Arabic',  flag: '🇸🇦', locale: 'ar-SA' },
-  { code: 'zh-CN', label: 'Chinese', flag: '🇨🇳', locale: 'zh-CN' },
-  { code: 'hi',    label: 'Hindi',   flag: '🇮🇳', locale: 'hi-IN' },
-  { code: 'fr',    label: 'French',  flag: '🇫🇷', locale: 'fr-FR' },
-  { code: 'es',    label: 'Spanish', flag: '🇪🇸', locale: 'es-ES' },
-  { code: 'de',    label: 'German',  flag: '🇩🇪', locale: 'de-DE' },
-];
+const LANG_A = { code: 'en',    label: 'English', flag: '🇺🇸', locale: 'en-US' };
+const LANG_B = { code: 'ar',    label: 'Arabic',  flag: '🇸🇦', locale: 'ar-SA' };
+const ALL_LANGS = [LANG_A, LANG_B];
 
 // ✅ INSTANT: Direct Google Translate — no backend, no Gemini, no delay
 const directTranslate = async (text, from, to) => {
@@ -33,8 +26,8 @@ export default function Conversation({ onLogout }) {
   });
   const [aiSummary, setAiSummary]   = useState('');
   const [showAiModal, setShowAiModal] = useState(false);
-  const [langA, setLangA] = useState(SYSTEM_LANGS[1]); // English
-  const [langB, setLangB] = useState(SYSTEM_LANGS[2]); // Arabic
+  const langA = LANG_A;
+  const langB = LANG_B;
   const [recording, setRecording]   = useState(null);  // code of who is recording
   const [status,    setStatus]      = useState('');
   const scrollRef        = useRef(null);
@@ -174,21 +167,14 @@ export default function Conversation({ onLogout }) {
         </div>
       </header>
 
-      {/* Language Selectors */}
-      <div style={{ padding: '20px 5%', background: '#fff', borderBottom: '1px solid #efefef' }}>
-        <div className="mobile-stack" style={{ gap: 12 }}>
-          {[{ val: langA, set: setLangA }, { val: langB, set: setLangB }].map(({ val, set }, i) => (
-            <div key={i} style={{ flex: 1, position: 'relative' }}>
-              <select
-                value={val.code}
-                onChange={(e) => set(SYSTEM_LANGS.find(l => l.code === e.target.value))}
-                style={{ width: '100%', padding: '22px 20px', borderRadius: 24, border: '2px solid #f0f0f0', fontWeight: 900, appearance: 'none', background: '#fff', fontSize: 18, cursor: 'pointer' }}
-              >
-                {SYSTEM_LANGS.map(l => <option key={l.code} value={l.code}>{l.flag} {l.label}</option>)}
-              </select>
-              <ChevronDown size={18} style={{ position: 'absolute', right: 20, top: 26, opacity: 0.3, pointerEvents: 'none' }} />
-            </div>
-          ))}
+      {/* Language Header Bar - Fixed English ↔ Arabic */}
+      <div style={{ padding: '14px 5%', background: '#fff', borderBottom: '1px solid #efefef', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 18 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 900, fontSize: 20 }}>
+          <span>{langA.flag}</span><span>{langA.label}</span>
+        </div>
+        <div style={{ fontSize: 22, color: '#bbb', fontWeight: 300 }}>⇄</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 900, fontSize: 20 }}>
+          <span>{langB.flag}</span><span>{langB.label}</span>
         </div>
       </div>
 
@@ -204,7 +190,7 @@ export default function Conversation({ onLogout }) {
           messages.map(m => (
             <div key={m.id} className={`chat-bubble ${m.speaker === langA.code ? 'chat-bubble-ar' : 'chat-bubble-zh'}`}>
               <div style={{ fontSize: 11, fontWeight: 900, opacity: 0.8, marginBottom: 8 }}>
-                {m.flag} {SYSTEM_LANGS.find(l => l.code === m.speaker)?.label}
+                {m.flag} {m.speaker === langA.code ? langA.label : langB.label}
               </div>
               <div style={{ fontSize: 22, fontWeight: 800, lineHeight: 1.2 }}>{m.translated}</div>
               <div style={{ fontSize: 15, borderTop: '1px solid rgba(255,255,255,0.1)', marginTop: 12, paddingTop: 12, opacity: 0.9, fontWeight: 600 }}>{m.original}</div>

@@ -1,32 +1,45 @@
 import axios from 'axios';
 
-// Update this to your deployed backend URL.
-// Since we are running locally first, assume FastAPI runs on port 8000.
-const API_BASE = 'http://localhost:8000'; 
+const isProd = import.meta.env.PROD;
+const API_BASE_URL = isProd 
+    ? window.location.origin + "/api" 
+    : "http://localhost:8000/api";
 
-export const translateText = async (text, sourceLang, targetLang) => {
-  try {
-    const response = await axios.post(`${API_BASE}/translate`, {
-      text,
-      source: sourceLang,
-      target: targetLang
-    });
-    return response.data.translation;
-  } catch (error) {
-    console.error('Translation error:', error);
-    return 'حدث خطأ، يرجى المحاولة مرة أخرى / 发生错误，请重试';
-  }
+const api = axios.create({
+    baseURL: API_BASE_URL,
+    headers: {
+        'Content-Type': 'application/json'
+    }
+});
+
+export const translateText = async (text, source, target) => {
+    try {
+        const response = await api.post('/translate', { text, source, target });
+        return response.data;
+    } catch (error) {
+        console.error('Translation error:', error);
+        return { translation: "(Error)" };
+    }
 };
 
-export const analyzeImage = async (base64Image, targetLang = 'ar') => {
-  try {
-    const response = await axios.post(`${API_BASE}/vision`, {
-      image_base64: base64Image,
-      target_lang: targetLang
-    });
-    return response.data.analysis;
-  } catch (error) {
-    console.error('Vision API error:', error);
-    return 'حدث خطأ في فهم الصورة / 读取图片错误';
-  }
+export const analyzeHistory = async (history) => {
+    try {
+        const response = await api.post('/analyze-history', { history });
+        return response.data;
+    } catch (error) {
+        console.error('Analysis error:', error);
+        return { summary: "Error loading analysis." };
+    }
 };
+
+export const speakText = async (text, lang) => {
+    try {
+        const response = await api.post('/speak', { text, lang });
+        return response.data;
+    } catch (error) {
+        console.error('TTS error:', error);
+        return { audio: "" };
+    }
+};
+
+export default api;

@@ -1,28 +1,32 @@
 import { useState, useRef, useEffect } from 'react';
-import { Mic, Trash2, Globe, LogOut, ChevronDown, Sparkles, X, Square } from 'lucide-react';
+import { Mic, Trash2, Globe, LogOut, ChevronDown, Sparkles, X, Square, Volume2 } from 'lucide-react';
 import { analyzeHistory } from '../services/api';
 
 const RAILWAY = import.meta.env.VITE_API_URL || 'https://web-production-c92ac.up.railway.app';
 
-const LANG_A = { code: 'en',    label: 'English', flag: '🇺🇸', locale: 'en-US' };
-const LANG_B = { code: 'ar',    label: 'Arabic',  flag: '🇸🇦', locale: 'ar-SA' };
-const ALL_LANGS = [LANG_A, LANG_B];
+const SYSTEM_LANGS = [
+  { code: 'en',    label: 'English', flag: '🇺🇸', locale: 'en-US' },
+  { code: 'ar',    label: 'Arabic',  flag: '🇸🇦', locale: 'ar-SA' },
+  { code: 'ur',    label: 'Urdu',    flag: '🇵🇰', locale: 'ur-PK' },
+  { code: 'zh-CN', label: 'Chinese', flag: '🇨🇳', locale: 'zh-CN' },
+  { code: 'hi',    label: 'Hindi',   flag: '🇮🇳', locale: 'hi-IN' },
+  { code: 'fr',    label: 'French',  flag: '🇫🇷', locale: 'fr-FR' },
+];
 
-// ✅ Fast: Direct Google Translate — falls back to Railway backend if CORS blocks it
+// ✅ Fast translation: Google Translate direct → Railway fallback
 const directTranslate = async (text, from, to) => {
   const sl = from.startsWith('zh') ? 'zh-CN' : from;
   const tl = to.startsWith('zh')  ? 'zh-CN' : to;
   try {
     const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${sl}&tl=${tl}&dt=t&q=${encodeURIComponent(text)}`;
-    const res = await fetch(url);
+    const res  = await fetch(url);
     if (!res.ok) throw new Error('gtx failed');
-    const data = await res.json();
+    const data   = await res.json();
     const result = data[0].map(s => s[0]).join('');
     if (!result) throw new Error('empty');
     return result;
   } catch {
-    // Fallback → Railway backend
-    const res = await fetch(`${RAILWAY}/translate`, {
+    const res  = await fetch(`${RAILWAY}/translate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ text, source: from, target: to }),
@@ -32,12 +36,15 @@ const directTranslate = async (text, from, to) => {
   }
 };
 
-// ✅ TTS via speechSynthesis — works on iOS 13+ without user gesture
+// ✅ TTS — speechSynthesis works on iOS 13+ without user-gesture restriction
 const playAudio = (text, lang) => {
   if (!('speechSynthesis' in window)) return;
   window.speechSynthesis.cancel();
   const u = new SpeechSynthesisUtterance(text);
-  const localeMap = { 'ar': 'ar-SA', 'en': 'en-US', 'zh-CN': 'zh-CN', 'ur': 'ur-PK' };
+  const localeMap = {
+    'ar': 'ar-SA', 'en': 'en-US', 'zh-CN': 'zh-CN',
+    'ur': 'ur-PK', 'hi': 'hi-IN', 'fr': 'fr-FR',
+  };
   u.lang   = localeMap[lang] || 'en-US';
   u.volume = 1;
   u.rate   = 0.9;
@@ -52,49 +59,42 @@ export default function Conversation({ onLogout }) {
     } catch(e) {}
     return [];
   });
-  const [aiSummary, setAiSummary]   = useState('');
+  const [aiSummary,   setAiSummary]   = useState('');
   const [showAiModal, setShowAiModal] = useState(false);
-  const langA = LANG_A;
-  const langB = LANG_B;
-  const [recording, setRecording]   = useState(null);  // code of who is recording
-  const [status,    setStatus]      = useState('');
-  const scrollRef        = useRef(null);
-  const _recognitionRef  = useRef(null);
+  const [langA, setLangA] = useState(SYSTEM_LANGS[0]); // English
+  const [langB, setLangB] = useState(SYSTEM_LANGS[1]); // Arabic
+  const [recording, setRecording] = useState(null);
+  const [status,    setStatus]    = useState('');
+  const scrollRef       = useRef(null);
+  const recognitionRef  = useRef(null);
 
   useEffect(() => {
     localStorage.setItem('deal_chat_v5', JSON.stringify(messages));
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [messages]);
 
-  // ── Recording controls ──────────────────────────────────────────────────────
-  // NOTE: Do NOT call audio.play() here — it consumes the iOS user gesture
-  // token and blocks webkitSpeechRecognition.start() from firing.
+  // ── Controls ────────────────────────────────────────────────────────────────
+  // ⚠️ Do NOT call audio.play() before r.start() — consumes iOS gesture token
   const handleActionClick = (active, target) => {
-    if (recording === active.code) {
-      stopRecognition();
-    } else {
-      startRecognition(active, target);
-    }
+    if (recording === active.code) stopRecognition();
+    else startRecognition(active, target);
   };
 
   const stopRecognition = () => {
-    if (_recognitionRef.current) {
-      _recognitionRef.current.stop();
-      _recognitionRef.current = null;
-    }
+    recognitionRef.current?.stop();
+    recognitionRef.current = null;
   };
 
   const startRecognition = (active, target) => {
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-      setStatus('❌ Browser not supported — use Safari on iPhone');
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) {
+      setStatus('❌ Use Safari on iPhone');
       setTimeout(() => setStatus(''), 3000);
       return;
     }
-
     try {
-      const r = new SpeechRecognition();
-      _recognitionRef.current = r;
+      const r = new SR();
+      recognitionRef.current = r;
       r.lang            = active.locale;
       r.continuous      = false;
       r.interimResults  = false;
@@ -103,66 +103,54 @@ export default function Conversation({ onLogout }) {
       setRecording(active.code);
       setStatus(`🎤 ${active.flag} Listening…`);
 
-      // ── Got speech result ──────────────────────────────────────────────────
       r.onresult = async (e) => {
         const text = e.results[0][0].transcript.trim();
         if (!text) { setStatus(''); return; }
-
         setStatus('⚡ Translating…');
         try {
           const translated = await directTranslate(text, active.code, target.code);
-          setMessages(prev => [
-            ...prev,
-            {
-              id:         Date.now(),
-              speaker:    active.code,
-              original:   text,
-              translated: translated,
-              flag:       active.flag,
-            },
-          ]);
-          playAudio(translated, target.code); // iOS-safe audio playback
-        } catch (err) {
-          console.error('Translation failed:', err);
-          setStatus('❌ Translation failed — check internet');
+          setMessages(prev => [...prev, {
+            id: Date.now(), speaker: active.code,
+            original: text, translated,
+            flag: active.flag, targetLang: target.code,
+          }]);
+          playAudio(translated, target.code);
+        } catch {
+          setStatus('❌ Translation failed');
           setTimeout(() => setStatus(''), 3000);
           return;
         }
         setStatus('');
       };
 
-      // ── Errors ────────────────────────────────────────────────────────────
       r.onerror = (err) => {
-        console.error('Speech Error:', err.error);
         setRecording(null);
-        _recognitionRef.current = null;
-
+        recognitionRef.current = null;
         const msgs = {
-          'not-allowed':          '🔒 Mic blocked — allow mic in Settings',
-          'language-not-supported': `❌ ${active.label} not supported on this browser`,
-          'no-speech':            '🔇 No speech detected — try again',
-          'network':              '📶 Network error — check connection',
-          'audio-capture':        '🎙️ Mic not found',
+          'not-allowed':            '🔒 Mic blocked — allow in Settings',
+          'language-not-supported': `❌ ${active.label} not supported`,
+          'no-speech':              '🔇 No speech — try again',
+          'network':                '📶 Network error',
+          'audio-capture':          '🎙️ Mic not found',
         };
-        setStatus(msgs[err.error] || `❌ Error: ${err.error}`);
+        setStatus(msgs[err.error] || `❌ ${err.error}`);
         setTimeout(() => setStatus(''), 3500);
       };
 
       r.onend = () => {
         setRecording(null);
-        _recognitionRef.current = null;
-        setStatus(prev => prev === `🎤 ${active.flag} Listening…` ? '' : prev);
+        recognitionRef.current = null;
+        setStatus(prev => prev.includes('Listening') ? '' : prev);
       };
 
       r.start();
     } catch (e) {
-      console.error(e);
       setStatus('❌ Mic init failed');
       setTimeout(() => setStatus(''), 3000);
     }
   };
 
-  // ── UI ─────────────────────────────────────────────────────────────────────
+  // ── UI ──────────────────────────────────────────────────────────────────────
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', background: '#fff' }}>
       <audio id="global-audio" style={{ display: 'none' }} playsInline />
@@ -174,50 +162,83 @@ export default function Conversation({ onLogout }) {
           <h1 style={{ fontSize: 24, fontWeight: 900 }}>AI Companion</h1>
         </div>
         <div style={{ display: 'flex', gap: 12 }}>
-          <button onClick={() => setMessages([])} className="action-btn" title="Clear Chat"><Trash2 size={22}/></button>
+          <button onClick={() => setMessages([])} className="action-btn" title="Clear"><Trash2 size={22}/></button>
           <button onClick={() => setShowAiModal(true)} className="action-btn pulse" style={{ background: '#E8F5E9' }}>
             <Sparkles size={22} color="#006C35"/>
           </button>
         </div>
       </header>
 
-      {/* Language Header Bar - Fixed English ↔ Arabic */}
-      <div style={{ padding: '14px 5%', background: '#fff', borderBottom: '1px solid #efefef', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 18 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 900, fontSize: 20 }}>
-          <span>{langA.flag}</span><span>{langA.label}</span>
-        </div>
-        <div style={{ fontSize: 22, color: '#bbb', fontWeight: 300 }}>⇄</div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 900, fontSize: 20 }}>
-          <span>{langB.flag}</span><span>{langB.label}</span>
+      {/* ── Language Selectors ── */}
+      <div style={{ padding: '16px 5%', background: '#fff', borderBottom: '1px solid #efefef' }}>
+        <div className="mobile-stack" style={{ gap: 12 }}>
+          {/* Lang A */}
+          <div style={{ flex: 1, position: 'relative' }}>
+            <select
+              value={langA.code}
+              onChange={e => setLangA(SYSTEM_LANGS.find(l => l.code === e.target.value))}
+              style={{ width: '100%', padding: '18px 20px', borderRadius: 20, border: '2px solid #f0f0f0', fontWeight: 900, appearance: 'none', background: '#fff', fontSize: 17, cursor: 'pointer' }}
+            >
+              {SYSTEM_LANGS.map(l => <option key={l.code} value={l.code}>{l.flag} {l.label}</option>)}
+            </select>
+            <ChevronDown size={16} style={{ position: 'absolute', right: 16, top: 22, opacity: 0.3, pointerEvents: 'none' }} />
+          </div>
+
+          {/* Swap arrow */}
+          <div style={{ fontSize: 22, color: '#bbb', display: 'flex', alignItems: 'center' }}>⇄</div>
+
+          {/* Lang B */}
+          <div style={{ flex: 1, position: 'relative' }}>
+            <select
+              value={langB.code}
+              onChange={e => setLangB(SYSTEM_LANGS.find(l => l.code === e.target.value))}
+              style={{ width: '100%', padding: '18px 20px', borderRadius: 20, border: '2px solid #f0f0f0', fontWeight: 900, appearance: 'none', background: '#fff', fontSize: 17, cursor: 'pointer' }}
+            >
+              {SYSTEM_LANGS.map(l => <option key={l.code} value={l.code}>{l.flag} {l.label}</option>)}
+            </select>
+            <ChevronDown size={16} style={{ position: 'absolute', right: 16, top: 22, opacity: 0.3, pointerEvents: 'none' }} />
+          </div>
         </div>
       </div>
 
-      {/* Chat Messages */}
-      <main ref={scrollRef} className="container hide-scroll" style={{ flex: 1, overflowY: 'auto', padding: '30px 20px 340px', display: 'flex', flexDirection: 'column' }}>
+      {/* ── Chat messages ── */}
+      <main ref={scrollRef} className="container hide-scroll"
+        style={{ flex: 1, overflowY: 'auto', padding: '24px 20px 340px', display: 'flex', flexDirection: 'column' }}>
         {messages.length === 0 ? (
-          <div className="flex-center" style={{ height: '35vh', flexDirection: 'column', color: '#ddd', textAlign: 'center' }}>
-            <Globe size={120} style={{ opacity: 0.08, marginBottom: 25 }}/>
-            <p style={{ fontWeight: 900, fontSize: 24, color: '#aaa' }}>Two-Way Conversation</p>
-            <p style={{ fontSize: 14 }}>Tap a mic button to start speaking</p>
+          <div className="flex-center" style={{ height: '35vh', flexDirection: 'column', textAlign: 'center' }}>
+            <Globe size={100} style={{ opacity: 0.07, marginBottom: 20 }}/>
+            <p style={{ fontWeight: 900, fontSize: 22, color: '#aaa' }}>Two-Way Conversation</p>
+            <p style={{ fontSize: 14, color: '#ccc' }}>Tap a mic button to start speaking</p>
           </div>
         ) : (
           messages.map(m => (
             <div key={m.id} className={`chat-bubble ${m.speaker === langA.code ? 'chat-bubble-ar' : 'chat-bubble-zh'}`}>
-              <div style={{ fontSize: 11, fontWeight: 900, opacity: 0.8, marginBottom: 8 }}>
-                {m.flag} {m.speaker === langA.code ? langA.label : langB.label}
+              {/* Speaker label */}
+              <div style={{ fontSize: 11, fontWeight: 900, opacity: 0.8, marginBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span>{m.flag} {SYSTEM_LANGS.find(l => l.code === m.speaker)?.label ?? m.speaker}</span>
+                {/* 🔊 Replay button */}
+                <button
+                  onClick={() => playAudio(m.translated, m.targetLang)}
+                  style={{ background: 'rgba(255,255,255,0.25)', border: 'none', borderRadius: 20, padding: '4px 10px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
+                >
+                  <Volume2 size={14} color="#fff" />
+                  <span style={{ fontSize: 11, color: '#fff', fontWeight: 700 }}>Play</span>
+                </button>
               </div>
+              {/* Translated text (big) */}
               <div style={{ fontSize: 22, fontWeight: 800, lineHeight: 1.2 }}>{m.translated}</div>
-              <div style={{ fontSize: 15, borderTop: '1px solid rgba(255,255,255,0.1)', marginTop: 12, paddingTop: 12, opacity: 0.9, fontWeight: 600 }}>{m.original}</div>
+              {/* Original text (small) */}
+              <div style={{ fontSize: 14, borderTop: '1px solid rgba(255,255,255,0.15)', marginTop: 10, paddingTop: 10, opacity: 0.85, fontWeight: 500 }}>{m.original}</div>
             </div>
           ))
         )}
       </main>
 
-      {/* Mic Buttons */}
+      {/* ── Mic Buttons ── */}
       <div className="chat-input-bar" style={{ height: 'auto', paddingBottom: 'calc(20px + env(safe-area-inset-bottom))' }}>
         <div className="container">
           {status && (
-            <div className="flex-center pulse" style={{ marginBottom: 15, fontSize: 16, fontWeight: 900, color: '#006C35' }}>
+            <div className="flex-center pulse" style={{ marginBottom: 12, fontSize: 16, fontWeight: 900, color: '#006C35' }}>
               {status}
             </div>
           )}
@@ -228,21 +249,20 @@ export default function Conversation({ onLogout }) {
               disabled={!!recording && recording !== langA.code}
               className="btn-primary"
               style={{
-                flex: 1, height: 120,
-                background: recording === langA.code ? '#000' : 'var(--saudi-green-gradient)',
-                borderRadius: 30, fontSize: 24,
-                boxShadow: '0 15px 35px rgba(0,108,53,0.2)',
-                opacity: (!!recording && recording !== langA.code) ? 0.35 : 1,
+                flex: 1, height: 115,
+                background: recording === langA.code ? '#111' : 'var(--saudi-green-gradient)',
+                borderRadius: 28, fontSize: 22,
+                boxShadow: '0 12px 30px rgba(0,108,53,0.25)',
+                opacity: (!!recording && recording !== langA.code) ? 0.3 : 1,
+                transition: 'all 0.2s',
               }}
             >
-              {recording === langA.code
-                ? <Square size={42} color="#fff" fill="#fff" className="pulse" />
-                : <Mic size={42} />}
+              {recording === langA.code ? <Square size={38} color="#fff" fill="#fff" className="pulse"/> : <Mic size={38}/>}
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
-                <span style={{ fontSize: 22, fontWeight: 900 }}>
+                <span style={{ fontSize: 20, fontWeight: 900 }}>
                   {recording === langA.code ? 'Stop' : `${langA.flag} ${langA.label}`}
                 </span>
-                <span style={{ fontSize: 13, opacity: 0.8 }}>
+                <span style={{ fontSize: 12, opacity: 0.75 }}>
                   {recording === langA.code ? 'Tap to finish' : 'Tap to speak'}
                 </span>
               </div>
@@ -254,21 +274,20 @@ export default function Conversation({ onLogout }) {
               disabled={!!recording && recording !== langB.code}
               className="btn-primary"
               style={{
-                flex: 1, height: 120,
-                background: recording === langB.code ? '#000' : 'var(--zh-red-gradient)',
-                borderRadius: 30, fontSize: 24,
-                boxShadow: '0 15px 35px rgba(238,28,37,0.2)',
-                opacity: (!!recording && recording !== langB.code) ? 0.35 : 1,
+                flex: 1, height: 115,
+                background: recording === langB.code ? '#111' : 'var(--zh-red-gradient)',
+                borderRadius: 28, fontSize: 22,
+                boxShadow: '0 12px 30px rgba(238,28,37,0.25)',
+                opacity: (!!recording && recording !== langB.code) ? 0.3 : 1,
+                transition: 'all 0.2s',
               }}
             >
-              {recording === langB.code
-                ? <Square size={42} color="#fff" fill="#fff" className="pulse" />
-                : <Mic size={42} />}
+              {recording === langB.code ? <Square size={38} color="#fff" fill="#fff" className="pulse"/> : <Mic size={38}/>}
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
-                <span style={{ fontSize: 22, fontWeight: 900 }}>
+                <span style={{ fontSize: 20, fontWeight: 900 }}>
                   {recording === langB.code ? 'Stop' : `${langB.flag} ${langB.label}`}
                 </span>
-                <span style={{ fontSize: 13, opacity: 0.8 }}>
+                <span style={{ fontSize: 12, opacity: 0.75 }}>
                   {recording === langB.code ? 'Tap to finish' : 'Tap to speak'}
                 </span>
               </div>
@@ -277,26 +296,23 @@ export default function Conversation({ onLogout }) {
         </div>
       </div>
 
-      {/* AI Intelligence Overlay */}
+      {/* ── AI Modal ── */}
       {showAiModal && (
         <div className="flex-center" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.9)', zIndex: 10000, padding: 25 }}>
-          <div className="glass-card" style={{ padding: 40, width: '100%', maxWidth: 550 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 25 }}>
-              <h3 style={{ fontSize: 24, fontWeight: 900 }}>Intelligence Summary</h3>
-              <button onClick={() => setShowAiModal(false)} className="action-btn"><X size={24}/></button>
+          <div className="glass-card" style={{ padding: 36, width: '100%', maxWidth: 520 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 22 }}>
+              <h3 style={{ fontSize: 22, fontWeight: 900 }}>Intelligence Summary</h3>
+              <button onClick={() => setShowAiModal(false)} className="action-btn"><X size={22}/></button>
             </div>
-            <div style={{ maxHeight: '60vh', overflowY: 'auto', marginBottom: 30 }} className="hide-scroll">
-              <p style={{ fontSize: 18, lineHeight: 1.6, color: '#555' }}>
-                {aiSummary || 'Continue your dialogue. AI is listening for key points…'}
+            <div style={{ maxHeight: '55vh', overflowY: 'auto', marginBottom: 26 }} className="hide-scroll">
+              <p style={{ fontSize: 17, lineHeight: 1.7, color: '#555' }}>
+                {aiSummary || 'Start a conversation — AI will analyze key points here.'}
               </p>
             </div>
             <button
-              onClick={async () => {
-                const data = await analyzeHistory(messages);
-                setAiSummary(data.summary);
-              }}
+              onClick={async () => { const d = await analyzeHistory(messages); setAiSummary(d.summary); }}
               className="btn-primary"
-              style={{ width: '100%', height: 75, fontSize: 20 }}
+              style={{ width: '100%', height: 70, fontSize: 18 }}
             >
               Refresh AI Analysis
             </button>

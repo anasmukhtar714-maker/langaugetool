@@ -34,13 +34,6 @@ export default function Conversation({ onLogout }) {
   const SILENT_AUDIO = "data:audio/mp3;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU5LjE2LjEwMAAAAAAAAAAAAAAA//OEAAAAAAAAAAAAAAAAAAAAAAAASW5mbwAAAA8AAAAEAAABIADAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzVMb28AAAAAAAAAAAAAAABMQU1FMy4xMDAB0AIAAAAAAAAgACMAAEhEAAABIADV2hSCAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA//MUTAAAAANIAAAAAExBTUUzLjEwMKqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq//MUTABAAAANIAAAAAExBTUUzLjEwMKqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq//MUTACAAAANIAAAAAExBTUUzLjEwMKqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq//MUTADAAAANIAAAAAExBTUUzLjEwMKqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq";
 
   const handleActionClick = (active, target) => {
-    // Synchronous iOS Audio Context Unlock
-    const audioNode = document.getElementById('global-audio');
-    if (audioNode) {
-       audioNode.src = SILENT_AUDIO;
-       audioNode.play().catch(() => {});
-    }
-
     if (recording === active.code) {
         stopRecognition();
     } else {
@@ -63,25 +56,29 @@ export default function Conversation({ onLogout }) {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [messages]);
 
-  const speak = async (text, lang) => {
-    try {
-      const data = await speakText(text, lang);
-      if (data.audio) {
-        const audioNode = document.getElementById('global-audio');
-        if (audioNode) {
-           audioNode.src = `data:audio/mp3;base64,${data.audio}`;
-           audioNode.play().catch(e => console.error("Audio block:", e));
-        }
-      }
-    } catch (err) {}
+  const speak = (text, lang) => {
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+    
+    window.speechSynthesis.cancel(); // Clear queue
+    const utterance = new SpeechSynthesisUtterance(text);
+    
+    let locale = 'en-US';
+    if (lang === 'ar') locale = 'ar-SA';
+    if (lang === 'zh-CN') locale = 'zh-CN';
+    if (lang === 'ur') locale = 'ur-PK';
+    if (lang === 'hi') locale = 'hi-IN';
+    if (lang === 'fr') locale = 'fr-FR';
+    if (lang === 'es') locale = 'es-ES';
+    if (lang === 'de') locale = 'de-DE';
+    
+    utterance.lang = locale;
+    utterance.volume = 1;
+    utterance.rate = 0.95; // Slightly slower for clarity
+    
+    window.speechSynthesis.speak(utterance);
   };
 
   const startRecognition = (active, target) => {
-    const audioNode = document.getElementById('global-audio');
-    if (audioNode) {
-       audioNode.play().catch(() => {}); // Unlock audio context on valid tap event
-    }
-
     if (typeof window === 'undefined') return;
     
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;

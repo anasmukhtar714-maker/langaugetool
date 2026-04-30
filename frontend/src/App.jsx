@@ -8,11 +8,7 @@ import DealLog from './pages/DealLog';
 import LandingPage from './pages/LandingPage';
 
 export const BottomNav = () => (
-  <nav style={{
-    height: '75px', background: '#fff', display: 'flex', justifyContent: 'space-around', alignItems: 'center',
-    borderTop: '1px solid rgba(0,0,0,0.05)', position: 'fixed', bottom: 0, left: 0, right: 0, 
-    zIndex: 9999, boxShadow: '0 -5px 25px rgba(0,0,0,0.03)', paddingBottom: 'env(safe-area-inset-bottom)'
-  }}>
+  <nav className="footer-nav">
     <NavLink to="/chat" style={({ isActive }) => ({ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', textDecoration: 'none', color: isActive ? '#006C35' : '#aaa', fontSize: '11px', fontWeight: isActive ? '900' : '600' })}>
       <Mic size={22} /> <span>Talk</span>
     </NavLink>

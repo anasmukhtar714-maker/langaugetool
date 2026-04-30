@@ -159,17 +159,17 @@ export default function Conversation({ onLogout }) {
               onClick={() => startRecognition(langA, langB)} 
               disabled={!!recording}
               className="btn-primary"
-              style={{ flex: 1, height: 64, background: recording === langA.code ? '#1A1A1A' : 'var(--saudi-green)' }}
+              style={{ flex: 1, height: 90, background: recording === langA.code ? '#1A1A1A' : 'var(--saudi-green)', borderRadius: 24, fontSize: 16, display: 'flex', flexDirection: 'column', gap: 5 }}
             >
-              <Mic size={20}/> <span>Talk {langA.label}</span>
+              <Mic size={32}/> <span>Talk {langA.label}</span>
             </button>
             <button 
               onClick={() => startRecognition(langB, langA)} 
               disabled={!!recording}
               className="btn-primary"
-              style={{ flex: 1, height: 64, background: recording === langB.code ? '#1A1A1A' : '#EE1C25' }}
+              style={{ flex: 1, height: 90, background: recording === langB.code ? '#1A1A1A' : '#EE1C25', borderRadius: 24, fontSize: 16, display: 'flex', flexDirection: 'column', gap: 5 }}
             >
-              <Mic size={20}/> <span>Talk {langB.label}</span>
+              <Mic size={32}/> <span>Talk {langB.label}</span>
             </button>
           </div>
         </div>

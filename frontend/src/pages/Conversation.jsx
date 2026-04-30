@@ -4,6 +4,11 @@ import { analyzeHistory } from '../services/api';
 
 const RAILWAY = import.meta.env.VITE_API_URL || 'https://web-production-c92ac.up.railway.app';
 
+// Pre-warm voices on page load (iOS needs this)
+if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+  window.speechSynthesis.getVoices();
+}
+
 const SYSTEM_LANGS = [
   { code: 'en',    label: 'English', flag: '🇺🇸', locale: 'en-US' },
   { code: 'ar',    label: 'Arabic',  flag: '🇸🇦', locale: 'ar-SA' },
@@ -36,19 +41,46 @@ const directTranslate = async (text, from, to) => {
   }
 };
 
-// ✅ TTS — speechSynthesis works on iOS 13+ without user-gesture restriction
+// ✅ iOS-safe TTS with voice-load wait + stuck-synthesis fix
 const playAudio = (text, lang) => {
   if (!('speechSynthesis' in window)) return;
   window.speechSynthesis.cancel();
-  const u = new SpeechSynthesisUtterance(text);
+
   const localeMap = {
     'ar': 'ar-SA', 'en': 'en-US', 'zh-CN': 'zh-CN',
     'ur': 'ur-PK', 'hi': 'hi-IN', 'fr': 'fr-FR',
   };
-  u.lang   = localeMap[lang] || 'en-US';
-  u.volume = 1;
-  u.rate   = 0.9;
-  window.speechSynthesis.speak(u);
+  const targetLocale = localeMap[lang] || 'en-US';
+
+  const doSpeak = () => {
+    const u = new SpeechSynthesisUtterance(text);
+    // Pick best available voice for the language
+    const voices = window.speechSynthesis.getVoices();
+    const match  = voices.find(v => v.lang.startsWith(lang === 'zh-CN' ? 'zh' : lang))
+                || voices.find(v => v.lang.startsWith('en')); // fallback to English voice
+    if (match) u.voice = match;
+    u.lang   = targetLocale;
+    u.volume = 1;
+    u.rate   = 0.88;
+    u.onerror = e => console.warn('TTS error:', e.error);
+    window.speechSynthesis.speak(u);
+
+    // iOS bug: synthesis silently pauses — keep it alive
+    const resume = setInterval(() => {
+      if (!window.speechSynthesis.speaking) { clearInterval(resume); return; }
+      window.speechSynthesis.pause();
+      window.speechSynthesis.resume();
+    }, 5000);
+  };
+
+  // iOS: wait for voices to be ready if not yet loaded
+  const voices = window.speechSynthesis.getVoices();
+  if (voices.length > 0) {
+    doSpeak();
+  } else {
+    window.speechSynthesis.addEventListener('voiceschanged', doSpeak, { once: true });
+    setTimeout(doSpeak, 300); // safety fallback
+  }
 };
 
 export default function Conversation({ onLogout }) {

@@ -143,13 +143,14 @@ async def audio_translate(request: dict):
         ])
         
         txt = response.text.strip()
-        # Clean markdown code blocks if gemini returned them anyway
-        if txt.startswith("```json"):
-            txt = txt[7:-3]
-        elif txt.startswith("```"):
-            txt = txt[3:-3]
-            
-        parsed = json.loads(txt.strip())
+        txt = response.text.strip()
+        import re
+        match = re.search(r'\{.*\}', txt, re.DOTALL)
+        if match:
+            parsed = json.loads(match.group(0))
+        else:
+            parsed = {"original": "Audio recognized", "translated": txt}
+
         return {
             "translation": parsed.get("translated", "(Translation missing)"),
             "original": parsed.get("original", "(Transcription missing)")

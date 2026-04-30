@@ -1,7 +1,7 @@
 import axios from 'axios';
 
-// Update this with your actual Railway URL after deploy
-const RAILWAY_URL = "https://languagetool-production313.up.railway.app" ;
+// Uses VITE_API_URL from environment (set in Vercel dashboard), falls back to Railway URL
+const RAILWAY_URL = import.meta.env.VITE_API_URL || "https://languagetool-production313.up.railway.app";
 
 const api = axios.create({
     baseURL: RAILWAY_URL,

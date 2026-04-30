@@ -97,6 +97,9 @@ export default function Conversation({ onLogout }) {
   const [langB, setLangB] = useState(SYSTEM_LANGS[1]); // Arabic
   const [recording, setRecording] = useState(null);
   const [status,    setStatus]    = useState('');
+  // fallback: { active, target } when speech recognition is unsupported
+  const [textFallback, setTextFallback] = useState(null);
+  const [typedText,    setTypedText]    = useState('');
   const scrollRef       = useRef(null);
   const recognitionRef  = useRef(null);
 
@@ -160,13 +163,19 @@ export default function Conversation({ onLogout }) {
         recognitionRef.current = null;
         const msgs = {
           'not-allowed':            '🔒 Mic blocked — allow in Settings',
-          'language-not-supported': `❌ ${active.label} not supported`,
+          'language-not-supported': null, // handled below with text fallback
           'no-speech':              '🔇 No speech — try again',
           'network':                '📶 Network error',
           'audio-capture':          '🎙️ Mic not found',
         };
-        setStatus(msgs[err.error] || `❌ ${err.error}`);
-        setTimeout(() => setStatus(''), 3500);
+        if (err.error === 'language-not-supported') {
+          // Show text input so user can type instead
+          setStatus('');
+          setTextFallback({ active, target });
+        } else {
+          setStatus(msgs[err.error] || `❌ ${err.error}`);
+          setTimeout(() => setStatus(''), 3500);
+        }
       };
 
       r.onend = () => {
@@ -180,6 +189,25 @@ export default function Conversation({ onLogout }) {
       setStatus('❌ Mic init failed');
       setTimeout(() => setStatus(''), 3000);
     }
+  };
+
+  // Submit typed text as fallback
+  const submitTyped = async () => {
+    if (!typedText.trim() || !textFallback) return;
+    const { active, target } = textFallback;
+    setTextFallback(null);
+    setTypedText('');
+    setStatus('⚡ Translating…');
+    try {
+      const translated = await directTranslate(typedText.trim(), active.code, target.code);
+      setMessages(prev => [...prev, {
+        id: Date.now(), speaker: active.code,
+        original: typedText.trim(), translated,
+        flag: active.flag, targetLang: target.code,
+      }]);
+      playAudio(translated, target.code);
+    } catch { setStatus('❌ Translation failed'); }
+    setStatus('');
   };
 
   // ── UI ──────────────────────────────────────────────────────────────────────
@@ -272,6 +300,37 @@ export default function Conversation({ onLogout }) {
           {status && (
             <div className="flex-center pulse" style={{ marginBottom: 12, fontSize: 16, fontWeight: 900, color: '#006C35' }}>
               {status}
+            </div>
+          )}
+
+          {/* Text input fallback for unsupported speech languages */}
+          {textFallback && (
+            <div style={{ marginBottom: 14, background: '#f9f9f9', borderRadius: 18, padding: '14px 16px', border: '2px solid #e0e0e0' }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: '#888', marginBottom: 8 }}>
+                🎙️ {textFallback.active.label} mic not supported — type instead:
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <input
+                  autoFocus
+                  value={typedText}
+                  onChange={e => setTypedText(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && submitTyped()}
+                  placeholder={`Type in ${textFallback.active.label}…`}
+                  style={{ flex: 1, padding: '12px 16px', borderRadius: 14, border: '2px solid #ddd', fontSize: 16, outline: 'none' }}
+                />
+                <button
+                  onClick={submitTyped}
+                  style={{ padding: '12px 20px', borderRadius: 14, background: '#006C35', color: '#fff', fontWeight: 900, border: 'none', fontSize: 16, cursor: 'pointer' }}
+                >
+                  ➤
+                </button>
+                <button
+                  onClick={() => { setTextFallback(null); setTypedText(''); }}
+                  style={{ padding: '12px 16px', borderRadius: 14, background: '#f0f0f0', border: 'none', fontSize: 16, cursor: 'pointer' }}
+                >
+                  ✕
+                </button>
+              </div>
             </div>
           )}
           <div className="mobile-stack">

@@ -3,7 +3,7 @@ import { Mic, Trash2, Globe, LogOut, ChevronDown, Sparkles, X } from 'lucide-rea
 import { translateText, analyzeHistory, speakText } from '../services/api';
 
 const SYSTEM_LANGS = [
-  { code: 'ur', label: 'Urdu', flag: '🇵🇰', locale: 'ur-PK' },
+  { code: 'ur', label: 'Urdu', flag: '🇵🇰', locale: 'ur-IN' }, // Changed to ur-IN to improve Safari compatibility
   { code: 'en', label: 'English', flag: '🇺🇸', locale: 'en-US' },
   { code: 'ar', label: 'Arabic', flag: '🇸🇦', locale: 'ar-SA' },
   { code: 'zh-CN', label: 'Chinese', flag: '🇨🇳', locale: 'zh-CN' },
@@ -35,13 +35,20 @@ export default function Conversation({ onLogout }) {
     try {
       const data = await speakText(text, lang);
       if (data.audio) {
-        const audio = new Audio(`data:audio/mp3;base64,${data.audio}`);
-        audio.play().catch(e => console.error("Audio block:", e));
+        const audioNode = document.getElementById('global-audio');
+        if (audioNode) {
+           audioNode.src = `data:audio/mp3;base64,${data.audio}`;
+           audioNode.play().catch(e => console.error("Audio block:", e));
+        }
       }
     } catch (err) {}
   };
 
   const startRecognition = (active, target) => {
+    const audioNode = document.getElementById('global-audio');
+    if (audioNode) {
+       audioNode.play().catch(() => {}); // Unlock audio context on valid tap event
+    }
 
     if (typeof window === 'undefined') return;
     
@@ -94,6 +101,7 @@ export default function Conversation({ onLogout }) {
 
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', background: '#fff' }}>
+      <audio id="global-audio" style={{ display: 'none' }} playsInline />
       <header className="glass-header">
          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <button onClick={onLogout} className="action-btn" style={{ color: '#E53935' }}><LogOut size={22} /></button>

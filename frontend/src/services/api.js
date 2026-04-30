@@ -40,4 +40,17 @@ export const speakText = async (text, lang) => {
     }
 };
 
+export const analyzeVision = async (image_base64, target_lang) => {
+    try {
+        const response = await api.post('/vision', { 
+            image_base64, 
+            target_lang: target_lang === 'ar' ? 'Arabic' : 'Chinese' 
+        });
+        return response.data;
+    } catch (error) {
+        console.error('Vision error:', error);
+        return { analysis: "Error processing document." };
+    }
+};
+
 export default api;

@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { Camera, RefreshCw, Upload, FileText, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
 
-const API_BASE = import.meta.env.VITE_API_URL || "https://web-production-c92ac.up.railway.app";
+import { analyzeVision } from '../services/api';
 
 const CameraTranslation = () => {
   const [image, setImage] = useState(null);
@@ -26,15 +26,7 @@ const CameraTranslation = () => {
     setLoading(true);
     setResult('');
     try {
-      const res = await fetch(`${API_BASE}/vision`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          image_base64: base64Image, 
-          target_lang: lang === 'ar' ? 'Arabic' : 'Chinese' 
-        }),
-      });
-      const data = await res.json();
+      const data = await analyzeVision(base64Image, lang);
       setResult(data.analysis);
       
       // Save to log

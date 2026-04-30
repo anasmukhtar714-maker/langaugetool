@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { Mic, Send, Share2, Trash2, Globe, PlayCircle, LogOut, ChevronDown, Sparkles, Volume2, Info, X } from 'lucide-react';
 import { BottomNav } from '../App';
 
-const API_BASE = import.meta.env.VITE_API_URL || "https://web-production-c92ac.up.railway.app";
+import { translateText, analyzeHistory, speakText } from '../services/api';
 
 const SYSTEM_LANGS = [
   { code: 'ur', label: 'Urdu', flag: '🇵🇰', locale: 'ur-PK' },
@@ -33,12 +33,7 @@ export default function Conversation({ onLogout }) {
     const fetchSummary = async () => {
       if (messages.length === 0) return;
       try {
-        const res = await fetch(`${API_BASE}/analyze-history`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ history: messages.slice(-15) })
-        });
-        const data = await res.json();
+        const data = await analyzeHistory(messages.slice(-15));
         setAiSummary(data.summary);
       } catch (err) {}
     };
@@ -47,12 +42,7 @@ export default function Conversation({ onLogout }) {
 
   const speak = async (text, lang) => {
     try {
-      const res = await fetch(`${API_BASE}/speak`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text, lang })
-      });
-      const data = await res.json();
+      const data = await speakText(text, lang);
       if (data.audio) {
         new Audio(`data:audio/mp3;base64,${data.audio}`).play().catch(() => {});
       }
@@ -60,12 +50,7 @@ export default function Conversation({ onLogout }) {
   };
 
   const translate = async (text, source, target) => {
-    const res = await fetch(`${API_BASE}/translate`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text, source, target }),
-    });
-    const data = await res.json();
+    const data = await translateText(text, source, target);
     return data.translation || "(Error)";
   };
 
@@ -185,18 +170,18 @@ export default function Conversation({ onLogout }) {
 
       {/* Unified Action Buttons - Large and clear */}
       <footer style={{ position: 'fixed', bottom: 75, left: 0, right: 0, zIndex: 1000, background: '#fff', padding: '15px', borderTop: '1px solid #eee' }}>
-          <div className="action-button-container" style={{ display: 'flex', flexDirection: window.innerWidth < 640 ? 'column' : 'row', gap: 10 }}>
+          <div className="action-button-container" style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
             <button 
               onClick={() => startRecognition(langA, langB)} 
               disabled={!!recording}
-              style={{ flex: 1, height: 75, background: recording === langA.code ? '#1A1A1A' : 'var(--saudi-green)', color: '#fff', borderRadius: 20, border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, cursor: 'pointer', boxShadow: '0 8px 20px rgba(0,108,53,0.15)' }}
+              style={{ flex: '1 1 140px', height: 75, background: recording === langA.code ? '#1A1A1A' : 'var(--saudi-green)', color: '#fff', borderRadius: 20, border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, cursor: 'pointer', boxShadow: '0 8px 20px rgba(0,108,53,0.15)' }}
             >
               <Mic size={24}/> <span style={{ fontWeight: 900, fontSize: 13 }}>Talk {langA.label}</span>
             </button>
             <button 
               onClick={() => startRecognition(langB, langA)} 
               disabled={!!recording}
-              style={{ flex: 1, height: 75, background: recording === langB.code ? '#1A1A1A' : '#EE1C25', color: '#fff', borderRadius: 20, border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, cursor: 'pointer', boxShadow: '0 8px 20px rgba(238,28,37,0.15)' }}
+              style={{ flex: '1 1 140px', height: 75, background: recording === langB.code ? '#1A1A1A' : '#EE1C25', color: '#fff', borderRadius: 20, border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, cursor: 'pointer', boxShadow: '0 8px 20px rgba(238,28,37,0.15)' }}
             >
               <Mic size={24}/> <span style={{ fontWeight: 900, fontSize: 13 }}>Talk {langB.label}</span>
             </button>

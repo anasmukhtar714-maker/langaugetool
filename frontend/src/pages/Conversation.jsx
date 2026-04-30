@@ -32,32 +32,16 @@ const directTranslate = async (text, from, to) => {
   }
 };
 
-// ✅ iOS-safe TTS: uses Audio element (works after async, no user-gesture lock)
-const playAudio = async (text, lang) => {
-  try {
-    const langCode = lang.split('-')[0];
-    const res = await fetch(`${RAILWAY}/speak`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text, lang: langCode }),
-    });
-    const data = await res.json();
-    if (!data.audio) return;
-    const audio = document.getElementById('global-audio');
-    if (!audio) return;
-    audio.src = `data:audio/mp3;base64,${data.audio}`;
-    audio.load();
-    await audio.play().catch(() => {});
-  } catch (e) {
-    console.warn('TTS failed, using speechSynthesis fallback', e);
-    // Last resort fallback
-    if ('speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
-      const u = new SpeechSynthesisUtterance(text);
-      u.lang = lang === 'ar' ? 'ar-SA' : 'en-US';
-      window.speechSynthesis.speak(u);
-    }
-  }
+// ✅ TTS via speechSynthesis — works on iOS 13+ without user gesture
+const playAudio = (text, lang) => {
+  if (!('speechSynthesis' in window)) return;
+  window.speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(text);
+  const localeMap = { 'ar': 'ar-SA', 'en': 'en-US', 'zh-CN': 'zh-CN', 'ur': 'ur-PK' };
+  u.lang   = localeMap[lang] || 'en-US';
+  u.volume = 1;
+  u.rate   = 0.9;
+  window.speechSynthesis.speak(u);
 };
 
 export default function Conversation({ onLogout }) {
@@ -82,21 +66,10 @@ export default function Conversation({ onLogout }) {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [messages]);
 
-  // ── Unlock audio on first tap (iOS Safari requires user gesture) ──────────
-  const audioUnlocked = useRef(false);
-  const unlockAudio = () => {
-    if (audioUnlocked.current) return;
-    audioUnlocked.current = true;
-    const audio = document.getElementById('global-audio');
-    if (audio) {
-      audio.src = 'data:audio/mp3;base64,SUQzBAAAAAAA';
-      audio.play().catch(() => {});
-    }
-  };
-
   // ── Recording controls ──────────────────────────────────────────────────────
+  // NOTE: Do NOT call audio.play() here — it consumes the iOS user gesture
+  // token and blocks webkitSpeechRecognition.start() from firing.
   const handleActionClick = (active, target) => {
-    unlockAudio(); // 🔑 Must be called inside user gesture for iOS
     if (recording === active.code) {
       stopRecognition();
     } else {

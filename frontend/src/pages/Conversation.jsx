@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Mic, Send, Share2, Trash2, PlayCircle, LogOut, ChevronDown, Sparkles, Volume2, X } from 'lucide-react';
+import { Mic, Send, Share2, Trash2, Globe, PlayCircle, LogOut, ChevronDown, Sparkles, Volume2, X } from 'lucide-react';
 import { translateText, analyzeHistory, speakText } from '../services/api';
 
 const SYSTEM_LANGS = [

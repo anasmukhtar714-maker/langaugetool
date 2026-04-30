@@ -14,7 +14,15 @@ const SYSTEM_LANGS = [
 ];
 
 export default function Conversation({ onLogout }) {
-  const [messages, setMessages] = useState(() => JSON.parse(localStorage.getItem('deal_chat_v5') || '[]'));
+  const [messages, setMessages] = useState(() => {
+    try {
+      const saved = localStorage.getItem('deal_chat_v5');
+      if (saved && saved !== 'undefined') {
+        return JSON.parse(saved);
+      }
+    } catch(e) {}
+    return [];
+  });
   const [aiSummary, setAiSummary] = useState('');
   const [showAiModal, setShowAiModal] = useState(false);
   const [langA, setLangA] = useState(SYSTEM_LANGS[0]); 

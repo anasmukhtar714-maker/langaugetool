@@ -20,21 +20,6 @@ export const translateText = async (text, source, target) => {
     }
 };
 
-export const translateAudio = async (audioBase64, mimeType, source, target) => {
-    try {
-        const response = await api.post('/audio-translate', { 
-            audio_base64: audioBase64, 
-            mime_type: mimeType,
-            source, 
-            target 
-        });
-        return response.data;
-    } catch (error) {
-        console.error('Audio Translation error:', error);
-        return { translation: "(Error processing audio)", original: "(Error)" };
-    }
-};
-
 export const analyzeHistory = async (history) => {
     try {
         const response = await api.post('/analyze-history', { history });

@@ -39,6 +39,7 @@ export default function Conversation({ onLogout }) {
   };
 
   const startRecognition = (active, target) => {
+    if (typeof window === 'undefined') return;
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {
       alert("Speech recognition not supported in this browser.");

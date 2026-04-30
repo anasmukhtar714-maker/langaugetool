@@ -48,7 +48,7 @@ const LandingPage = ({ onUnlock }) => {
                <Heart size={16} color="var(--saudi-green)" />
                <span style={{ fontSize: 13, fontWeight: 800, color: 'var(--saudi-green)', textTransform: 'uppercase' }}>Live Voice Translation</span>
             </div>
-            <h1 style={{ fontSize: 'clamp(36px, 5vw, 64px)', fontWeight: 900, lineHeight: 1.1, letterSpacing: -2, marginBottom: 24 }}>
+            <h1 style={{ fontSize: 42, fontWeight: 900, lineHeight: 1.1, letterSpacing: -2, marginBottom: 24 }}>
                تحدث مع العالم <br/>
                <span style={{ color: 'var(--saudi-green)' }}>Everywhere</span> You Go.
             </h1>

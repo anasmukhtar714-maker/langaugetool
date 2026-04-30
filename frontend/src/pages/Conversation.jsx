@@ -80,6 +80,7 @@ export default function Conversation({ onLogout }) {
 
     r.onresult = async (e) => {
       const text = e.results[0][0].transcript;
+      if (!text) return;
       setStatus('Translating...');
       const trans = await translate(text, active.code, target.code);
       setMessages(p => [...p, { id: Date.now(), speaker: active.code, original: text, translated: trans, flag: active.flag }]);
@@ -87,8 +88,24 @@ export default function Conversation({ onLogout }) {
       setStatus('');
     };
 
-    r.onend = () => { setRecording(null); setStatus(''); };
-    r.start();
+    r.onerror = (e) => {
+      console.error('Speech error:', e.error);
+      setStatus(e.error === 'not-allowed' ? 'Mic Permission Denied' : 'Try again...');
+      setTimeout(() => setStatus(''), 2000);
+    };
+
+    r.onend = () => { 
+      setRecording(null); 
+      if (status === 'Translating...') return; 
+      setStatus(''); 
+    };
+    
+    try {
+      r.start();
+    } catch (err) {
+      setRecording(null);
+      setStatus('Mic error');
+    }
   };
 
   return (
@@ -115,15 +132,14 @@ export default function Conversation({ onLogout }) {
       </header>
 
       {/* Optimized Language Bar - Larger and cleaner */}
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, padding: '15px 20px', background: '#fff', borderBottom: '1px solid #f1f3f5' }}>
-        <div style={{ flex: '1 1 150px', position: 'relative' }}>
+      <div className="mobile-stack" style={{ padding: '15px 20px', background: '#fff', borderBottom: '1px solid #f1f3f5' }}>
+        <div style={{ flex: 1, position: 'relative' }}>
           <select value={langA.code} onChange={(e) => setLangA(SYSTEM_LANGS.find(l => l.code === e.target.value))} style={{ width: '100%', padding: '14px', borderRadius: 16, border: '1px solid #eee', background: '#fcfcfc', fontWeight: 900, fontSize: 14, color: '#000', appearance: 'none' }}>
             {SYSTEM_LANGS.map(l => <option key={l.code} value={l.code}>{l.flag} {l.label}</option>)}
           </select>
           <ChevronDown size={14} style={{ position: 'absolute', right: 14, top: 18, opacity: 0.3 }}/>
         </div>
-        <div style={{ display: 'none', alignItems: 'center', opacity: 0.2 }} id="desktop-globe"><Globe size={18}/></div>
-        <div style={{ flex: '1 1 150px', position: 'relative' }}>
+        <div style={{ flex: 1, position: 'relative' }}>
           <select value={langB.code} onChange={(e) => setLangB(SYSTEM_LANGS.find(l => l.code === e.target.value))} style={{ width: '100%', padding: '14px', borderRadius: 16, border: '1px solid #eee', background: '#fcfcfc', fontWeight: 900, fontSize: 14, color: '#000', appearance: 'none' }}>
             {SYSTEM_LANGS.map(l => <option key={l.code} value={l.code}>{l.flag} {l.label}</option>)}
           </select>
@@ -177,18 +193,18 @@ export default function Conversation({ onLogout }) {
 
       {/* Unified Action Buttons - Large and clear */}
       <footer style={{ position: 'fixed', bottom: 75, left: 0, right: 0, zIndex: 1000, background: '#fff', padding: '15px', borderTop: '1px solid #eee' }}>
-          <div className="action-button-container" style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+          <div className="mobile-stack">
             <button 
               onClick={() => startRecognition(langA, langB)} 
               disabled={!!recording}
-              style={{ flex: '1 1 140px', height: 75, background: recording === langA.code ? '#1A1A1A' : 'var(--saudi-green)', color: '#fff', borderRadius: 20, border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, cursor: 'pointer', boxShadow: '0 8px 20px rgba(0,108,53,0.15)' }}
+              style={{ height: 75, background: recording === langA.code ? '#1A1A1A' : 'var(--saudi-green)', color: '#fff', borderRadius: 20, border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, cursor: 'pointer', boxShadow: '0 8px 20px rgba(0,108,53,0.15)', flex: 1 }}
             >
               <Mic size={24}/> <span style={{ fontWeight: 900, fontSize: 13 }}>Talk {langA.label}</span>
             </button>
             <button 
               onClick={() => startRecognition(langB, langA)} 
               disabled={!!recording}
-              style={{ flex: '1 1 140px', height: 75, background: recording === langB.code ? '#1A1A1A' : '#EE1C25', color: '#fff', borderRadius: 20, border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, cursor: 'pointer', boxShadow: '0 8px 20px rgba(238,28,37,0.15)' }}
+              style={{ height: 75, background: recording === langB.code ? '#1A1A1A' : '#EE1C25', color: '#fff', borderRadius: 20, border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, cursor: 'pointer', boxShadow: '0 8px 20px rgba(238,28,37,0.15)', flex: 1 }}
             >
               <Mic size={24}/> <span style={{ fontWeight: 900, fontSize: 13 }}>Talk {langB.label}</span>
             </button>

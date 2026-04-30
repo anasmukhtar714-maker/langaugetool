@@ -98,3 +98,30 @@ body {
 }
 
 .hide-scroll::-webkit-scrollbar { display: none; }
+
+/* Mobile Stacking Utility */
+.mobile-stack {
+  display: flex;
+  gap: 12px;
+  width: 100%;
+}
+
+@media (max-width: 640px) {
+  .mobile-stack {
+    flex-direction: column !important;
+  }
+  .mobile-stack div, .mobile-stack button {
+    width: 100% !important;
+    flex: none !important;
+  }
+}
+
+.pulse {
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(0, 108, 53, 0.4); }
+  70% { transform: scale(1.05); box-shadow: 0 0 0 10px rgba(0, 108, 53, 0); }
+  100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(0, 108, 53, 0); }
+}

@@ -88,7 +88,7 @@ async def analyze_history(req: AnalysisRequest):
         return {"summary": "Intelligence engine ready. Start chatting for live insights."}
     try:
         chat_log = "\n".join([f"{m.get('speaker')}: {m.get('original')} -> {m.get('translated')}" for m in req.history[-10:]])
-        prompt = f"Analyze this business discussion log and provide a professional summary in Urdu (Max 2 sentences): \n\n{chat_log}"
+        prompt = f"Analyze this professional discussion log and provide a concise summary (Max 2 sentences). Use the most appropriate language for the context (professional English, Urdu, or Arabic): \n\n{chat_log}"
         response = model.generate_content(prompt)
         return {"summary": response.text.strip()}
     except Exception as e:

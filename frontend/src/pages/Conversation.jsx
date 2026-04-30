@@ -6,10 +6,17 @@ import { translateText, analyzeHistory, speakText } from '../services/api';
 
 const SYSTEM_LANGS = [
   { code: 'ur', label: 'Urdu', flag: '🇵🇰', locale: 'ur-PK' },
+  { code: 'en', label: 'English', flag: '🇺🇸', locale: 'en-US' },
   { code: 'ar', label: 'Arabic', flag: '🇸🇦', locale: 'ar-SA' },
   { code: 'zh-CN', label: 'Chinese', flag: '🇨🇳', locale: 'zh-CN' },
   { code: 'hi', label: 'Hindi', flag: '🇮🇳', locale: 'hi-IN' },
-  { code: 'en', label: 'English', flag: '🇺🇸', locale: 'en-US' },
+  { code: 'fr', label: 'French', flag: '🇫🇷', locale: 'fr-FR' },
+  { code: 'es', label: 'Spanish', flag: '🇪🇸', locale: 'es-ES' },
+  { code: 'de', label: 'German', flag: '🇩🇪', locale: 'de-DE' },
+  { code: 'tr', label: 'Turkish', flag: '🇹🇷', locale: 'tr-TR' },
+  { code: 'ru', label: 'Russian', flag: '🇷🇺', locale: 'ru-RU' },
+  { code: 'jp', label: 'Japanese', flag: '🇯🇵', locale: 'ja-JP' },
+  { code: 'ko', label: 'Korean', flag: '🇰🇷', locale: 'ko-KR' },
 ];
 
 export default function Conversation({ onLogout }) {

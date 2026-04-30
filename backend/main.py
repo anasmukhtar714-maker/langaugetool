@@ -53,7 +53,7 @@ def google_translate_fallback(text, source, target):
             return "".join([sentence[0] for sentence in data[0] if sentence[0]])
     except: return text
 
-@app.post("/translate")
+@app.post("/api/translate")
 async def translate(req: TranslateRequest):
     if model:
         try:
@@ -64,7 +64,7 @@ async def translate(req: TranslateRequest):
         except: pass
     return {"translation": google_translate_fallback(req.text, req.source, req.target)}
 
-@app.post("/analyze-history")
+@app.post("/api/analyze-history")
 async def analyze_history(req: AnalysisRequest):
     if not model or not req.history:
         return {"summary": "Welcome back! Ready for the next deal."}
@@ -75,7 +75,7 @@ async def analyze_history(req: AnalysisRequest):
         return {"summary": response.text.strip()}
     except: return {"summary": "Briefing unavailable."}
 
-@app.post("/speak")
+@app.post("/api/speak")
 async def text_to_speech(request: dict):
     try:
         text = request.get("text", "")
@@ -87,22 +87,31 @@ async def text_to_speech(request: dict):
             return {"audio": base64.b64encode(response.read()).decode(), "format": "mp3"}
     except: return {"audio": ""}
 
-# --- RELIABLE DEPLOYMENT SERVING ---
-dist_path = os.path.join(os.getcwd(), "frontend", "dist")
+# --- IRON-CLAD FRONTEND SERVING ---
+# Check both relative and absolute paths for Railway
+current_dir = os.path.dirname(os.path.abspath(__file__))
+dist_path = os.path.join(current_dir, "dist")
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "frontend_ready": os.path.exists(dist_path)}
+    return {
+        "status": "ok", 
+        "dist_exists": os.path.exists(dist_path),
+        "dist_path": dist_path
+    }
 
 if os.path.exists(dist_path):
-    # Mount the 'assets' directory first
+    # Mount assets explicitly
     assets_path = os.path.join(dist_path, "assets")
     if os.path.exists(assets_path):
         app.mount("/assets", StaticFiles(directory=assets_path), name="assets")
 
-    # Serve index.html for all other routes to support React Router
     @app.get("/{rest_of_path:path}")
     async def serve_frontend(rest_of_path: str):
+        # Prevent API routes from being swallowed
+        if rest_of_path.startswith("api/"):
+            return None 
+
         file_path = os.path.join(dist_path, rest_of_path)
         if os.path.isfile(file_path):
             return FileResponse(file_path)
@@ -110,4 +119,4 @@ if os.path.exists(dist_path):
 else:
     @app.get("/")
     def no_frontend():
-        return {"message": "Backend Live. Frontend folder not found in Railway build."}
+        return {"error": "Frontend dist folder NOT found. Please ensure 'backend/dist' exists on Railway."}

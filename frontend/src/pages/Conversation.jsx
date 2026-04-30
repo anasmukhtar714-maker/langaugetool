@@ -94,7 +94,7 @@ export default function Conversation({ onLogout }) {
       const r = new SpeechRecognition();
       _recognitionRef.current = r;
       r.lang = active.locale;
-      r.continuous = true; // Stay active longer to behave like GPT Voice dictation
+      r.continuous = false; // Restored Auto-Stop when user finishes speaking
       r.interimResults = false;
       r.interimResults = false;
 

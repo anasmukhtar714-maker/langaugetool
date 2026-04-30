@@ -2,18 +2,62 @@ import { useState, useRef, useEffect } from 'react';
 import { Mic, Trash2, Globe, LogOut, ChevronDown, Sparkles, X, Square } from 'lucide-react';
 import { analyzeHistory } from '../services/api';
 
+const RAILWAY = import.meta.env.VITE_API_URL || 'https://web-production-c92ac.up.railway.app';
+
 const LANG_A = { code: 'en',    label: 'English', flag: '🇺🇸', locale: 'en-US' };
 const LANG_B = { code: 'ar',    label: 'Arabic',  flag: '🇸🇦', locale: 'ar-SA' };
 const ALL_LANGS = [LANG_A, LANG_B];
 
-// ✅ INSTANT: Direct Google Translate — no backend, no Gemini, no delay
+// ✅ Fast: Direct Google Translate — falls back to Railway backend if CORS blocks it
 const directTranslate = async (text, from, to) => {
   const sl = from.startsWith('zh') ? 'zh-CN' : from;
   const tl = to.startsWith('zh')  ? 'zh-CN' : to;
-  const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${sl}&tl=${tl}&dt=t&q=${encodeURIComponent(text)}`;
-  const res = await fetch(url);
-  const data = await res.json();
-  return data[0].map(s => s[0]).join('');
+  try {
+    const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${sl}&tl=${tl}&dt=t&q=${encodeURIComponent(text)}`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('gtx failed');
+    const data = await res.json();
+    const result = data[0].map(s => s[0]).join('');
+    if (!result) throw new Error('empty');
+    return result;
+  } catch {
+    // Fallback → Railway backend
+    const res = await fetch(`${RAILWAY}/translate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text, source: from, target: to }),
+    });
+    const data = await res.json();
+    return data.translation || text;
+  }
+};
+
+// ✅ iOS-safe TTS: uses Audio element (works after async, no user-gesture lock)
+const playAudio = async (text, lang) => {
+  try {
+    const langCode = lang.split('-')[0];
+    const res = await fetch(`${RAILWAY}/speak`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text, lang: langCode }),
+    });
+    const data = await res.json();
+    if (!data.audio) return;
+    const audio = document.getElementById('global-audio');
+    if (!audio) return;
+    audio.src = `data:audio/mp3;base64,${data.audio}`;
+    audio.load();
+    await audio.play().catch(() => {});
+  } catch (e) {
+    console.warn('TTS failed, using speechSynthesis fallback', e);
+    // Last resort fallback
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(text);
+      u.lang = lang === 'ar' ? 'ar-SA' : 'en-US';
+      window.speechSynthesis.speak(u);
+    }
+  }
 };
 
 export default function Conversation({ onLogout }) {
@@ -38,24 +82,21 @@ export default function Conversation({ onLogout }) {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [messages]);
 
-  // ── TTS ────────────────────────────────────────────────────────────────────
-  const speak = (text, langCode) => {
-    if (!('speechSynthesis' in window)) return;
-    window.speechSynthesis.cancel();
-    const utter = new SpeechSynthesisUtterance(text);
-    const localeMap = {
-      'ar': 'ar-SA', 'zh-CN': 'zh-CN', 'ur': 'ur-PK',
-      'hi': 'hi-IN', 'fr': 'fr-FR',   'es': 'es-ES',
-      'de': 'de-DE', 'en': 'en-US',
-    };
-    utter.lang   = localeMap[langCode] || 'en-US';
-    utter.volume = 1;
-    utter.rate   = 0.95;
-    window.speechSynthesis.speak(utter);
+  // ── Unlock audio on first tap (iOS Safari requires user gesture) ──────────
+  const audioUnlocked = useRef(false);
+  const unlockAudio = () => {
+    if (audioUnlocked.current) return;
+    audioUnlocked.current = true;
+    const audio = document.getElementById('global-audio');
+    if (audio) {
+      audio.src = 'data:audio/mp3;base64,SUQzBAAAAAAA';
+      audio.play().catch(() => {});
+    }
   };
 
   // ── Recording controls ──────────────────────────────────────────────────────
   const handleActionClick = (active, target) => {
+    unlockAudio(); // 🔑 Must be called inside user gesture for iOS
     if (recording === active.code) {
       stopRecognition();
     } else {
@@ -107,7 +148,7 @@ export default function Conversation({ onLogout }) {
               flag:       active.flag,
             },
           ]);
-          speak(translated, target.code);
+          playAudio(translated, target.code); // iOS-safe audio playback
         } catch (err) {
           console.error('Translation failed:', err);
           setStatus('❌ Translation failed — check internet');

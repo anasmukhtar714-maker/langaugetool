@@ -93,13 +93,16 @@ export default function Conversation({ onLogout }) {
   });
   const [aiSummary,   setAiSummary]   = useState('');
   const [showAiModal, setShowAiModal] = useState(false);
-  const [langA, setLangA] = useState(SYSTEM_LANGS[0]); // English
-  const [langB, setLangB] = useState(SYSTEM_LANGS[1]); // Arabic
+  const [langA, setLangA] = useState(SYSTEM_LANGS[0]);
+  const [langB, setLangB] = useState(SYSTEM_LANGS[1]);
   const [recording, setRecording] = useState(null);
   const [status,    setStatus]    = useState('');
-  // fallback: { active, target } when speech recognition is unsupported
   const [textFallback, setTextFallback] = useState(null);
   const [typedText,    setTypedText]    = useState('');
+
+  // When language changes, reset recording state
+  const changeLangA = (lang) => { stopRecognition(); setTextFallback(null); setTypedText(''); setLangA(lang); };
+  const changeLangB = (lang) => { stopRecognition(); setTextFallback(null); setTypedText(''); setLangB(lang); };
   const scrollRef       = useRef(null);
   const recognitionRef  = useRef(null);
 
@@ -111,6 +114,8 @@ export default function Conversation({ onLogout }) {
   // ── Controls ────────────────────────────────────────────────────────────────
   // ⚠️ Do NOT call audio.play() before r.start() — consumes iOS gesture token
   const handleActionClick = (active, target) => {
+    setTextFallback(null); // clear any stale text fallback
+    setTypedText('');
     if (recording === active.code) stopRecognition();
     else startRecognition(active, target);
   };
@@ -136,6 +141,7 @@ export default function Conversation({ onLogout }) {
       r.maxAlternatives = 1;
 
       setRecording(active.code);
+      setTextFallback(null); // clear fallback if user tries mic again
       setStatus(`🎤 ${active.flag} Listening…`);
 
       r.onresult = async (e) => {
@@ -236,7 +242,7 @@ export default function Conversation({ onLogout }) {
           <div style={{ flex: 1, position: 'relative' }}>
             <select
               value={langA.code}
-              onChange={e => setLangA(SYSTEM_LANGS.find(l => l.code === e.target.value))}
+              onChange={e => changeLangA(SYSTEM_LANGS.find(l => l.code === e.target.value))}
               style={{ width: '100%', padding: '18px 20px', borderRadius: 20, border: '2px solid #f0f0f0', fontWeight: 900, appearance: 'none', background: '#fff', fontSize: 17, cursor: 'pointer' }}
             >
               {SYSTEM_LANGS.map(l => <option key={l.code} value={l.code}>{l.flag} {l.label}</option>)}
@@ -251,7 +257,7 @@ export default function Conversation({ onLogout }) {
           <div style={{ flex: 1, position: 'relative' }}>
             <select
               value={langB.code}
-              onChange={e => setLangB(SYSTEM_LANGS.find(l => l.code === e.target.value))}
+              onChange={e => changeLangB(SYSTEM_LANGS.find(l => l.code === e.target.value))}
               style={{ width: '100%', padding: '18px 20px', borderRadius: 20, border: '2px solid #f0f0f0', fontWeight: 900, appearance: 'none', background: '#fff', fontSize: 17, cursor: 'pointer' }}
             >
               {SYSTEM_LANGS.map(l => <option key={l.code} value={l.code}>{l.flag} {l.label}</option>)}

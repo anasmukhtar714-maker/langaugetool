@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Mic, Trash2, Globe, LogOut, ChevronDown, Sparkles, X, Square, Volume2 } from 'lucide-react';
+import { Mic, Trash2, Globe, LogOut, ChevronDown, Sparkles, X, Square } from 'lucide-react';
 import { analyzeHistory } from '../services/api';
 
 const RAILWAY = import.meta.env.VITE_API_URL || 'https://web-production-c92ac.up.railway.app';
@@ -44,7 +44,10 @@ const directTranslate = async (text, from, to) => {
 // ✅ iOS-safe TTS with voice-load wait + stuck-synthesis fix
 const playAudio = (text, lang) => {
   if (!('speechSynthesis' in window)) return;
+
+  // iOS fix: cancel + resume to unblock any stuck queue
   window.speechSynthesis.cancel();
+  window.speechSynthesis.resume();
 
   const localeMap = {
     'ar': 'ar-SA', 'en': 'en-US', 'zh-CN': 'zh-CN',
@@ -54,32 +57,34 @@ const playAudio = (text, lang) => {
 
   const doSpeak = () => {
     const u = new SpeechSynthesisUtterance(text);
-    // Pick best available voice for the language
     const voices = window.speechSynthesis.getVoices();
     const match  = voices.find(v => v.lang.startsWith(lang === 'zh-CN' ? 'zh' : lang))
-                || voices.find(v => v.lang.startsWith('en')); // fallback to English voice
+                || voices.find(v => v.lang.startsWith('en'));
     if (match) u.voice = match;
     u.lang   = targetLocale;
     u.volume = 1;
     u.rate   = 0.88;
     u.onerror = e => console.warn('TTS error:', e.error);
+
+    // iOS: resume must be called right before speak
+    window.speechSynthesis.resume();
     window.speechSynthesis.speak(u);
 
-    // iOS bug: synthesis silently pauses — keep it alive
-    const resume = setInterval(() => {
-      if (!window.speechSynthesis.speaking) { clearInterval(resume); return; }
+    // iOS bug: synthesis silently pauses — keepalive
+    const alive = setInterval(() => {
+      if (!window.speechSynthesis.speaking) { clearInterval(alive); return; }
       window.speechSynthesis.pause();
       window.speechSynthesis.resume();
     }, 5000);
   };
 
-  // iOS: wait for voices to be ready if not yet loaded
   const voices = window.speechSynthesis.getVoices();
   if (voices.length > 0) {
     doSpeak();
   } else {
     window.speechSynthesis.addEventListener('voiceschanged', doSpeak, { once: true });
-    setTimeout(doSpeak, 300); // safety fallback
+    setTimeout(doSpeak, 250);
+
   }
 };
 
@@ -286,17 +291,8 @@ export default function Conversation({ onLogout }) {
         ) : (
           messages.map(m => (
             <div key={m.id} className={`chat-bubble ${m.speaker === langA.code ? 'chat-bubble-ar' : 'chat-bubble-zh'}`}>
-              {/* Speaker label */}
-              <div style={{ fontSize: 11, fontWeight: 900, opacity: 0.8, marginBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span>{m.flag} {SYSTEM_LANGS.find(l => l.code === m.speaker)?.label ?? m.speaker}</span>
-                {/* 🔊 Replay button */}
-                <button
-                  onClick={() => playAudio(m.translated, m.targetLang)}
-                  style={{ background: 'rgba(255,255,255,0.25)', border: 'none', borderRadius: 20, padding: '4px 10px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
-                >
-                  <Volume2 size={14} color="#fff" />
-                  <span style={{ fontSize: 11, color: '#fff', fontWeight: 700 }}>Play</span>
-                </button>
+              <div style={{ fontSize: 11, fontWeight: 900, opacity: 0.8, marginBottom: 8 }}>
+                {m.flag} {SYSTEM_LANGS.find(l => l.code === m.speaker)?.label ?? m.speaker}
               </div>
               {/* Translated text (big) */}
               <div style={{ fontSize: 22, fontWeight: 800, lineHeight: 1.2 }}>{m.translated}</div>
